@@ -24274,10 +24274,10 @@ function planDiffBudget(files, options) {
   let charsUsed = 0;
   const reviewable = [];
   for (const file of [...files].sort((a, b) => byPath(a.path, b.path))) {
-    if (file.patch === void 0) {
-      dropped.push({ path: file.path, reason: "binary", chars: 0 });
-    } else if (isGeneratedPath(file.path)) {
-      dropped.push({ path: file.path, reason: "generated", chars: file.patch.length });
+    if (isGeneratedPath(file.path)) {
+      dropped.push({ path: file.path, reason: "generated", chars: file.patch?.length ?? 0 });
+    } else if (file.patch === void 0) {
+      dropped.push({ path: file.path, reason: "no-patch", chars: 0 });
     } else {
       reviewable.push(file);
     }
@@ -24324,7 +24324,7 @@ function findReviewComment(comments) {
 
 // src/render/skeleton.ts
 var DROP_REASONS = {
-  binary: "binary, no patch to review",
+  "no-patch": "no patch supplied, binary or too large",
   generated: "generated file",
   "over-budget": "over the diff budget"
 };

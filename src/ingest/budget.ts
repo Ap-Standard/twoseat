@@ -22,11 +22,11 @@ export interface DiffFile {
   status: DiffFileStatus;
   additions: number;
   deletions: number;
-  /** Absent when the API returns no patch, which is the case for binary files. */
+  /** Absent when the API returns no patch: binary files, and very large ones. */
   patch?: string;
 }
 
-export type DropReason = 'binary' | 'generated' | 'over-budget';
+export type DropReason = 'no-patch' | 'generated' | 'over-budget';
 
 /**
  * Paths whose contents are produced by a tool rather than written by a person.
@@ -110,10 +110,14 @@ export function planDiffBudget(
   // before budgeting so an excluded file never displaces a reviewable one.
   const reviewable: DiffFile[] = [];
   for (const file of [...files].sort((a, b) => byPath(a.path, b.path))) {
-    if (file.patch === undefined) {
-      dropped.push({ path: file.path, reason: 'binary', chars: 0 });
-    } else if (isGeneratedPath(file.path)) {
-      dropped.push({ path: file.path, reason: 'generated', chars: file.patch.length });
+    // Path first. The API omits patches for very large files as well as binary
+    // ones, and a lockfile is routinely large enough to hit that. Reporting a
+    // lockfile as "no patch" is true and useless; "generated" is why nobody
+    // wants it reviewed.
+    if (isGeneratedPath(file.path)) {
+      dropped.push({ path: file.path, reason: 'generated', chars: file.patch?.length ?? 0 });
+    } else if (file.patch === undefined) {
+      dropped.push({ path: file.path, reason: 'no-patch', chars: 0 });
     } else {
       reviewable.push(file);
     }

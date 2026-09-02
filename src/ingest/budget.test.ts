@@ -31,7 +31,7 @@ test('never returns a negative character budget for a tiny ceiling', () => {
   expect(charBudgetForTokens(1)).toBeGreaterThanOrEqual(0);
 });
 
-test('drops binary files, which carry no patch to review', () => {
+test('drops files the API gave no patch for', () => {
   const plan = planDiffBudget(
     [
       { path: 'logo.png', status: 'added', additions: 0, deletions: 0 },
@@ -41,7 +41,20 @@ test('drops binary files, which carry no patch to review', () => {
   );
 
   expect(plan.included.map((f) => f.path)).toEqual(['src/app.ts']);
-  expect(plan.dropped).toEqual([{ path: 'logo.png', reason: 'binary', chars: 0 }]);
+  expect(plan.dropped).toEqual([{ path: 'logo.png', reason: 'no-patch', chars: 0 }]);
+});
+
+test('labels a generated file as generated even when the API omits its patch', () => {
+  // The API omits patches for very large files, and a lockfile is routinely
+  // large enough to hit that. "no patch" is true but useless to a reviewer.
+  const plan = planDiffBudget(
+    [{ path: 'package-lock.json', status: 'modified', additions: 900, deletions: 900 }],
+    { charBudget: 500 },
+  );
+
+  expect(plan.dropped).toEqual([
+    { path: 'package-lock.json', reason: 'generated', chars: 0 },
+  ]);
 });
 
 test('drops generated files before budgeting, so they never consume budget', () => {

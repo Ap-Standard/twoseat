@@ -24,12 +24,15 @@ window, nothing more. It is not a billing estimate.
 
 Four steps, in this order.
 
-1. **Exclude files with no patch.** The API supplies no patch for binary files,
-   so there is nothing to review.
-2. **Exclude generated files by path.** Lockfiles, build output, vendored trees,
+1. **Exclude generated files by path.** Lockfiles, build output, vendored trees,
    minified bundles, sourcemaps, and test snapshots. The patterns live in
    `src/ingest/budget.ts` and are deliberately conservative: an ambiguous path
    stays reviewable.
+2. **Exclude files the API gave no patch for.** That covers binary files and
+   very large ones. Path matching runs first because the API also omits the
+   patch for a large lockfile, and reporting that file as "no patch" is true but
+   tells a reviewer nothing. "Generated" is the reason nobody wanted it
+   reviewed.
 3. **Order what remains by patch size, smallest first**, with the file path as a
    tiebreaker. This maximizes the number of files a run reviews and stops one
    oversized file from starving everything behind it. Ordering compares

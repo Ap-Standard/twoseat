@@ -15,7 +15,7 @@ export interface SkeletonCommentInput {
 }
 
 const DROP_REASONS: Record<DropReason, string> = {
-  binary: 'binary, no patch to review',
+  'no-patch': 'no patch supplied, binary or too large',
   generated: 'generated file',
   'over-budget': 'over the diff budget',
 };
