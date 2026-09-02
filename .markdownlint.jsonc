@@ -1,0 +1,8 @@
+{
+  // Line length: prose wraps at editor width, not a lint rule.
+  "MD013": false,
+  // Inline HTML: needed for occasional layout in README.
+  "MD033": false,
+  // First-line H1: PR/issue templates legitimately start with H2.
+  "MD041": false
+}
