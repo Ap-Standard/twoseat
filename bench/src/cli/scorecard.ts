@@ -36,6 +36,19 @@ function main(): void {
   }
 
   const persisted = JSON.parse(readFileSync(scorecardPath, 'utf8')) as Persisted;
+
+  // A card of empty rows is worse than no card. It looks like a published
+  // measurement and carries none, and a reader has no way to tell it apart
+  // from a genuinely poor score.
+  if (persisted.card.cases.scored === 0) {
+    console.error(
+      '::error::The last benchmark run scored no cases, so there is nothing to publish. ' +
+        'Every row would read "not measured", which reads as a result and is not one. ' +
+        'Fix why the run failed and try again.',
+    );
+    process.exit(1);
+  }
+
   const block = renderScorecardBlock(persisted.card, persisted.meta);
   const readme = readFileSync(readmePath, 'utf8');
   const result = spliceScorecard(readme, block);

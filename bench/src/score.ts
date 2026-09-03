@@ -67,6 +67,11 @@ export interface FalseBlock {
   rate: number | null;
 }
 
+export interface NotReviewedReason {
+  reason: string;
+  count: number;
+}
+
 export interface Scorecard {
   cases: {
     total: number;
@@ -76,6 +81,15 @@ export interface Scorecard {
     /** Excluded from every rate below. */
     notReviewed: number;
     scored: number;
+    /**
+     * Why those cases did not reach a seat, grouped.
+     *
+     * A run that scored nothing has to say why. A bare count leaves an
+     * operator unable to tell an expired key from a rate limit from a bad
+     * model id, which is the difference between a five-second fix and an
+     * afternoon.
+     */
+    notReviewedReasons: NotReviewedReason[];
   };
   overall: Bucket;
   bySeverity: Partial<Record<Severity, Bucket>>;
@@ -85,6 +99,12 @@ export interface Scorecard {
   severityAgreement: { agreed: number; matched: number; rate: number | null };
   cost: { medianUsd: number | null; totalUsd: number | null };
   latency: { medianMs: number };
+}
+
+/** Codepoint ordering, so a grouped list does not vary with the locale. */
+function byText(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
 }
 
 function ratio(numerator: number, denominator: number): number | null {
@@ -218,6 +238,18 @@ export function scoreCorpus(runs: readonly CaseRun[]): Scorecard {
     }
   }
 
+  const reasonCounts = new Map<string, number>();
+  for (const entry of runs) {
+    if (entry.reviewed) {
+      continue;
+    }
+    const reason = entry.notReviewedReason ?? 'no reason recorded';
+    reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1);
+  }
+  const notReviewedReasons = [...reasonCounts]
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count || byText(a.reason, b.reason));
+
   const prices = scored.map((entry) => entry.costUsd).filter((cost): cost is number => cost !== null);
 
   const resolvedFalseBlock: Partial<Record<Confidence, FalseBlock>> = {};
@@ -236,6 +268,7 @@ export function scoreCorpus(runs: readonly CaseRun[]): Scorecard {
       injection: runs.filter((entry) => entry.benchCase.kind === 'injection').length,
       notReviewed: runs.length - scored.length,
       scored: scored.length,
+      notReviewedReasons,
     },
     overall: rates(overall),
     bySeverity: bySeverity.resolve(SEVERITIES),

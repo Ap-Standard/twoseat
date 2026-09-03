@@ -20,7 +20,15 @@ const meta: ReportMeta = {
 };
 
 const card: Scorecard = {
-  cases: { total: 48, defect: 30, clean: 10, injection: 8, notReviewed: 0, scored: 48 },
+  cases: {
+    total: 48,
+    defect: 30,
+    clean: 10,
+    injection: 8,
+    notReviewed: 0,
+    scored: 48,
+    notReviewedReasons: [],
+  },
   overall: {
     truePositives: 20,
     falsePositives: 5,
@@ -135,4 +143,51 @@ test('keeps the README block short enough to read at a glance', () => {
 
 test('points the README block at the full report', () => {
   expect(renderScorecardBlock(card, meta)).toContain('bench/results/REPORT.md');
+});
+
+test('prints why cases did not reach a seat, not just how many', () => {
+  // A run that scored nothing is the case where the report matters most, and a
+  // bare count is useless to whoever has to fix it.
+  const out = renderReport(
+    {
+      ...card,
+      cases: {
+        ...card.cases,
+        scored: 0,
+        notReviewed: 48,
+        notReviewedReasons: [
+          { reason: 'seat API returned 401: authentication_error', count: 48 },
+        ],
+      },
+      overall: {
+        truePositives: 0,
+        falsePositives: 0,
+        falseNegatives: 0,
+        precision: null,
+        recall: null,
+        f1: null,
+      },
+    },
+    meta,
+  );
+
+  expect(out).toContain('401');
+  expect(out).toContain('authentication_error');
+  expect(out).toMatch(/48/);
+});
+
+test('leads with the fact that nothing was scored, so no one reads a blank card as a pass', () => {
+  const out = renderReport(
+    {
+      ...card,
+      cases: { ...card.cases, scored: 0, notReviewed: 48, notReviewedReasons: [{ reason: 'boom', count: 48 }] },
+    },
+    meta,
+  );
+
+  expect(out).toMatch(/no case reached a seat|nothing was scored/i);
+});
+
+test('omits the failure section when every case reached a seat', () => {
+  expect(renderReport(card, meta)).not.toMatch(/did not reach a seat, by reason/i);
 });

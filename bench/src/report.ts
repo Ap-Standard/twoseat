@@ -55,6 +55,47 @@ const BUCKET_HEADER = [
   '| --- | --- | --- | --- | --- | --- | --- |',
 ];
 
+/**
+ * Says plainly when a run measured nothing.
+ *
+ * A card of "not measured" rows looks similar to a card of good results at a
+ * glance, and the failure case is exactly where a reader most needs to be told
+ * what happened. So it goes above everything else.
+ */
+function nothingScoredBanner(card: Scorecard): string[] {
+  if (card.cases.scored > 0) {
+    return [];
+  }
+  return [
+    `**No case reached a seat, so nothing was scored.** All ` +
+      `${String(card.cases.total)} cases failed before a review happened. Every rate ` +
+      'below reads "not measured" because none of them has any data behind it, ' +
+      'which is not a result about the gate. The reasons are listed at the end.',
+    '',
+  ];
+}
+
+function failureLines(card: Scorecard): string[] {
+  if (card.cases.notReviewedReasons.length === 0) {
+    return [];
+  }
+
+  const lines = [
+    '',
+    '## Cases that did not reach a seat, by reason',
+    '',
+    '| Cases | Reason |',
+    '| --- | --- |',
+  ];
+  for (const entry of card.cases.notReviewedReasons) {
+    // Pipes would break the table, and the reason text comes from an API.
+    const reason = entry.reason.replace(/\s+/g, ' ').replace(/\|/g, '\\|').trim();
+    lines.push(`| ${String(entry.count)} | ${reason} |`);
+  }
+
+  return lines;
+}
+
 function samplingNote(meta: ReportMeta): string[] {
   if (meta.runsPerCase > 1) {
     return [
@@ -97,6 +138,7 @@ export function renderReport(card: Scorecard, meta: ReportMeta): string {
     `Generated ${meta.generatedAt} against \`${meta.model}\`, prompt version ` +
       `${meta.promptVersion} (contract fingerprint \`${meta.promptFingerprint}\`).`,
     '',
+    ...nothingScoredBanner(card),
     ...samplingNote(meta),
     '',
     '## What was measured',
@@ -198,6 +240,7 @@ export function renderReport(card: Scorecard, meta: ReportMeta): string {
     '| | Value |',
     '| --- | --- |',
     ...costLines(card, meta),
+    ...failureLines(card),
     '',
     '## What this does not tell you',
     '',
