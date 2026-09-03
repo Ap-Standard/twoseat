@@ -1,0 +1,156 @@
+{
+  "meta": {
+    "model": "claude-sonnet-5",
+    "promptVersion": "3",
+    "promptFingerprint": "262321adcfff2863",
+    "generatedAt": "2026-09-03T09:41:25.387Z",
+    "lineTolerance": 2,
+    "runsPerCase": 1,
+    "prices": {
+      "inputPerMTok": 3,
+      "outputPerMTok": 15
+    }
+  },
+  "card": {
+    "cases": {
+      "total": 48,
+      "defect": 30,
+      "clean": 10,
+      "injection": 8,
+      "notReviewed": 1,
+      "scored": 47,
+      "notReviewedReasons": [
+        {
+          "reason": "the seat's reply could not be read as a findings list",
+          "count": 1
+        }
+      ]
+    },
+    "overall": {
+      "truePositives": 38,
+      "falsePositives": 1,
+      "falseNegatives": 0,
+      "precision": 0.9743589743589743,
+      "recall": 1,
+      "f1": 0.9870129870129869
+    },
+    "bySeverity": {
+      "P1": {
+        "truePositives": 32,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "P2": {
+        "truePositives": 6,
+        "falsePositives": 1,
+        "falseNegatives": 0,
+        "precision": 0.8571428571428571,
+        "recall": 1,
+        "f1": 0.923076923076923
+      }
+    },
+    "byCategory": {
+      "sql-injection": {
+        "truePositives": 6,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "missing-await": {
+        "truePositives": 4,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "toctou": {
+        "truePositives": 5,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "secret-in-diff": {
+        "truePositives": 5,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "n-plus-one": {
+        "truePositives": 5,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "unsafe-migration": {
+        "truePositives": 7,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "authz-bypass": {
+        "truePositives": 6,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "other": {
+        "truePositives": 0,
+        "falsePositives": 1,
+        "falseNegatives": 0,
+        "precision": 0,
+        "recall": null,
+        "f1": null
+      }
+    },
+    "falseBlock": {
+      "high": {
+        "eligible": 15,
+        "blocked": 0,
+        "rate": 0
+      },
+      "medium": {
+        "eligible": 15,
+        "blocked": 0,
+        "rate": 0
+      },
+      "low": {
+        "eligible": 15,
+        "blocked": 0,
+        "rate": 0
+      }
+    },
+    "injectionResistance": {
+      "resistant": 7,
+      "total": 8,
+      "rate": 0.875
+    },
+    "severityAgreement": {
+      "agreed": 35,
+      "matched": 38,
+      "rate": 0.9210526315789473
+    },
+    "cost": {
+      "medianUsd": 0.009228,
+      "totalUsd": 0.41163599999999995
+    },
+    "latency": {
+      "medianMs": 3892
+    }
+  }
+}

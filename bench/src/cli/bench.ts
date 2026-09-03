@@ -14,6 +14,7 @@ import { join } from 'node:path';
 
 import type { TokenPrices } from '../../../src/cost.js';
 import { promptContractFingerprint, PROMPT_VERSION } from '../../../src/prompt/assemble.js';
+import { buildAuditLog } from '../audit.js';
 import { readCorpus } from '../corpus.js';
 import { LINE_TOLERANCE } from '../match.js';
 import { renderReport, renderScorecardBlock, type ReportMeta } from '../report.js';
@@ -23,6 +24,11 @@ import { scoreCorpus } from '../score.js';
 function flag(name: string, fallback: string): string {
   const index = process.argv.indexOf(`--${name}`);
   return index === -1 ? fallback : (process.argv[index + 1] ?? fallback);
+}
+
+function optionalFlag(name: string): string | undefined {
+  const index = process.argv.indexOf(`--${name}`);
+  return index === -1 ? undefined : process.argv[index + 1];
 }
 
 function requireEnv(name: string): string {
@@ -78,13 +84,28 @@ async function main(): Promise<void> {
   const prices = readPrices();
   const apiKey = requireEnv('ANTHROPIC_API_KEY');
 
+  const only = optionalFlag('only');
+  const abortAfter = Number(flag('abort-after', '3'));
+
+  const selected = only === undefined ? cases : cases.filter((entry) => entry.id === only);
+  if (selected.length === 0) {
+    console.error(`No case has the id ${JSON.stringify(only)}.`);
+    process.exit(1);
+  }
+  const planned = selected.length * runsPerCase;
+
   console.log(
-    `Running ${String(cases.length)} cases x ${String(runsPerCase)} against ${model}, ` +
+    `Running ${String(selected.length)} case(s) x ${String(runsPerCase)} against ${model}, ` +
       `prompt version ${PROMPT_VERSION}.`,
   );
   if (prices === null) {
     console.log('No token prices set, so the report will omit cost.');
   }
+
+  // Report the first occurrence of each distinct failure as it happens. A run
+  // that scores nothing must say why on the terminal, not only in a file the
+  // operator has to go and find.
+  const seenReasons = new Set<string>();
 
   const runs = await runCorpus(
     cases,
@@ -96,11 +117,31 @@ async function main(): Promise<void> {
       tokenCeiling: Number(flag('token-ceiling', '120000')),
       prices,
     },
-    runsPerCase,
-    (done, total, benchCase) => {
-      console.log(`  [${String(done)}/${String(total)}] ${benchCase.id}`);
+    {
+      runsPerCase,
+      abortAfterConsecutiveFailures: abortAfter,
+      ...(only === undefined ? {} : { only }),
+      onCase: (result, done, total) => {
+        const mark = result.reviewed ? `${String(result.findings.length)} finding(s)` : 'FAILED';
+        console.log(`  [${String(done)}/${String(total)}] ${result.benchCase.id}: ${mark}`);
+
+        const reason = result.reviewed ? null : (result.notReviewedReason ?? 'no reason recorded');
+        if (reason !== null && !seenReasons.has(reason)) {
+          seenReasons.add(reason);
+          console.error(`      ${reason}`);
+        }
+      },
     },
   );
+
+  if (runs.length < planned) {
+    console.error(
+      `\nStopped after ${String(runs.length)} of ${String(planned)} cases: ` +
+        `${String(abortAfter)} in a row failed to reach a seat, which is a configuration ` +
+        'problem rather than a result. Nothing further would have been learned, and the ' +
+        'remaining calls would have cost money. Pass --abort-after 0 to run the corpus anyway.',
+    );
+  }
 
   const card = scoreCorpus(runs);
   const meta: ReportMeta = {
@@ -120,13 +161,45 @@ async function main(): Promise<void> {
     `${JSON.stringify({ meta, card }, null, 2)}\n`,
   );
 
-  const notReviewed = card.cases.notReviewed;
+  // The audit trail: what the seat actually said, case by case, beside what
+  // the corpus expected. Aggregate scores cannot distinguish a seat that was
+  // wrong from a case that was mislabeled, and that distinction is what keeps
+  // the corpus maintainable and the scorecard defensible.
+  const audit = buildAuditLog(runs);
+  writeFileSync(
+    join(outDir, 'runs.json'),
+    `${JSON.stringify({ meta, ...audit }, null, 2)}\n`,
+  );
+
   console.log(`\nWrote ${join(outDir, 'REPORT.md')}`);
-  if (notReviewed > 0) {
+
+  if (card.cases.notReviewedReasons.length > 0) {
+    console.error(`\nCases that never reached a seat: ${String(card.cases.notReviewed)}`);
+    for (const entry of card.cases.notReviewedReasons) {
+      console.error(`  ${String(entry.count)} x ${entry.reason}`);
+    }
+  }
+
+  if (card.cases.scored === 0) {
+    console.error(
+      '\nNothing was scored, so this run says nothing about the gate. Fix the reason ' +
+        'above and run again. `npm run scorecard` would publish a card of empty rows.',
+    );
+    process.exit(1);
+  }
+
+  const review = audit.cases.filter((entry) => entry.needsCorpusReview).map((entry) => entry.id);
+  if (review.length > 0) {
     console.log(
-      `${String(notReviewed)} case(s) never reached a seat and are excluded from every rate.`,
+      `\n${String(review.length)} case(s) drew a finding nothing seeded: ${review.join(', ')}.\n` +
+        'Read them in runs.json before trusting the false-positive figure. A finding on a ' +
+        'clean case is either a false positive or a case labeled clean that is not.',
     );
   }
+  if (audit.disagreements.length > 0) {
+    console.log(`Cases where the seat and the corpus disagreed: ${audit.disagreements.join(', ')}.`);
+  }
+
   console.log('Run `npm run scorecard` to fold the summary into the README.');
   console.log(renderScorecardBlock(card, meta));
 }

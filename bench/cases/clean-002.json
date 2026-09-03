@@ -7,7 +7,7 @@
     {
       "path": "src/api/update-profile.ts",
       "patch": [
-        "@@ -14,6 +14,11 @@",
+        "@@ -14,6 +14,12 @@",
         " export async function updateProfile(req: Request, res: Response, db: Db) {",
         "   const patch = parseProfilePatch(req.body);",
         " ",
@@ -16,7 +16,8 @@
         "+  try {",
         "+    await db.profiles.update(req.user.id, patch);",
         "+  } catch (error) {",
-        "+    return res.status(502).json({ error: describe(error) });",
+        "+    logger.error({ err: error }, 'profile update failed');",
+        "+    return res.status(502).json({ error: 'Could not update profile' });",
         "+  }",
         "+",
         "+  return res.status(204).end();",

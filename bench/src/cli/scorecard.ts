@@ -12,7 +12,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { renderScorecardBlock, type ReportMeta } from '../report.js';
+import { renderReport, renderScorecardBlock, type ReportMeta } from '../report.js';
 import { spliceScorecard } from '../readme.js';
 import type { Scorecard } from '../score.js';
 
@@ -36,6 +36,19 @@ function main(): void {
   }
 
   const persisted = JSON.parse(readFileSync(scorecardPath, 'utf8')) as Persisted;
+
+  // A card of empty rows is worse than no card. It looks like a published
+  // measurement and carries none, and a reader has no way to tell it apart
+  // from a genuinely poor score.
+  if (persisted.card.cases.scored === 0) {
+    console.error(
+      '::error::The last benchmark run scored no cases, so there is nothing to publish. ' +
+        'Every row would read "not measured", which reads as a result and is not one. ' +
+        'Fix why the run failed and try again.',
+    );
+    process.exit(1);
+  }
+
   const block = renderScorecardBlock(persisted.card, persisted.meta);
   const readme = readFileSync(readmePath, 'utf8');
   const result = spliceScorecard(readme, block);
@@ -45,20 +58,36 @@ function main(): void {
     process.exit(1);
   }
 
-  if (result.readme === readme) {
-    console.log('README scorecard already matches the last run.');
+  // Both the README block and the report are derived from this one file, so
+  // both are regenerated from it. That is also what makes a prose or layout
+  // fix to the renderer free: the numbers are already on disk, and correcting
+  // how they read must never require paying for another run.
+  const reportPath = join(root, 'bench', 'results', 'REPORT.md');
+  const report = renderReport(persisted.card, persisted.meta);
+  const reportOnDisk = existsSync(reportPath) ? readFileSync(reportPath, 'utf8') : '';
+
+  const readmeStale = result.readme !== readme;
+  const reportStale = report !== reportOnDisk;
+
+  if (!readmeStale && !reportStale) {
+    console.log('README scorecard and report already match the last run.');
     return;
   }
 
   if (check) {
+    const stale = [readmeStale ? 'README scorecard' : null, reportStale ? 'REPORT.md' : null]
+      .filter((name) => name !== null)
+      .join(' and ');
     console.error(
-      '::error::README scorecard is stale. Run `npm run scorecard` and commit the result.',
+      `::error::${stale} drifted from bench/results/scorecard.json. ` +
+        'Run `npm run scorecard` and commit the result.',
     );
     process.exit(1);
   }
 
-  writeFileSync(readmePath, result.readme);
-  console.log('README scorecard updated from bench/results/scorecard.json.');
+  if (readmeStale) writeFileSync(readmePath, result.readme);
+  if (reportStale) writeFileSync(reportPath, report);
+  console.log('Regenerated from bench/results/scorecard.json.');
 }
 
 main();

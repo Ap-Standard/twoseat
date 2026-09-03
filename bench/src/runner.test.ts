@@ -202,7 +202,7 @@ test('mints a fresh marker token per case, so one diff cannot learn another\'s',
 test('runs every case the requested number of times', async () => {
   const { seat, calls } = seatReturning(foundIt);
 
-  const results = await runCorpus([benchCase, benchCase], deps(seat), 3);
+  const results = await runCorpus([benchCase, benchCase], deps(seat), { runsPerCase: 3 });
 
   expect(calls).toHaveLength(6);
   expect(results).toHaveLength(6);
@@ -250,4 +250,53 @@ test('does not score a case the budget emptied entirely', async () => {
 
   expect(calls).toHaveLength(0);
   expect(result.reviewed).toBe(false);
+});
+
+test('stops early when consecutive cases fail, instead of burning the whole corpus', async () => {
+  // A bad key or a wrong model id fails every case identically. Discovering
+  // that on case 48 costs 48 calls and tells you nothing case 3 did not.
+  const { seat, calls } = seatReturning({ kind: 'failed', message: 'seat API returned 401' });
+
+  const results = await runCorpus([benchCase, benchCase, benchCase, benchCase, benchCase], deps(seat), {
+    abortAfterConsecutiveFailures: 3,
+  });
+
+  expect(calls).toHaveLength(3);
+  expect(results).toHaveLength(3);
+});
+
+test('keeps going when a failure is isolated rather than systemic', async () => {
+  let call = 0;
+  const seat = (): Promise<SeatOutcome> => {
+    call += 1;
+    return Promise.resolve(
+      call === 2 ? { kind: 'failed', message: 'transient' } : foundIt,
+    );
+  };
+
+  const results = await runCorpus([benchCase, benchCase, benchCase, benchCase], deps(seat), {
+    abortAfterConsecutiveFailures: 3,
+  });
+
+  expect(results).toHaveLength(4);
+});
+
+test('hands each result to the caller as it completes', async () => {
+  const { seat } = seatReturning(foundIt);
+  const seen: boolean[] = [];
+
+  await runCorpus([benchCase, benchCase], deps(seat), {
+    onCase: (result) => seen.push(result.reviewed),
+  });
+
+  expect(seen).toEqual([true, true]);
+});
+
+test('runs a single named case, for diagnosing without paying for the corpus', async () => {
+  const { seat, calls } = seatReturning(foundIt);
+  const other = { ...benchCase, id: 'clean-001' };
+
+  await runCorpus([benchCase, other], deps(seat), { only: 'clean-001' });
+
+  expect(calls).toHaveLength(1);
 });
