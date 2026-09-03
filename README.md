@@ -23,8 +23,9 @@ resistant it is to instructions hidden in a diff, and what one review costs.
 Live in this release:
 
 - **The gate never blocks on its own malfunction.** A crash, a bad input, or an
-  API failure produces an annotation and the check still passes. Blocking a
-  merge is reserved for policy decisions about real findings.
+  API failure produces an annotation and the check still passes. No code path in
+  this release can fail a check at all. When the policy engine lands, a decision
+  about a real finding will be the only thing that can.
 - **Truncation is whole file or nothing.** A partial patch shifts line anchors,
   and a finding on the wrong line reads as an invented one. Files that do not
   fit are named in the comment rather than dropped silently. See
@@ -33,12 +34,17 @@ Live in this release:
   comment per push trains reviewers to ignore it.
 - **Deletions stay in scope.** Removing a guard is a change worth reviewing, so
   the budget keeps deletion-only patches instead of discarding them.
+- **The diff is data, not instructions.** Diff content sits inside a region
+  whose delimiters carry a random token minted per run, so content cannot forge
+  its way out into the instruction region. Reviewer instructions are
+  byte-identical no matter what a diff contains, and the prompt is versioned.
+  See [docs/prompt-isolation.md](docs/prompt-isolation.md).
 
 Planned, not yet built:
 
-- The diff reaches a seat structurally fenced and separated from reviewer
-  instructions, with adversarial cases proving that text in a diff cannot alter
-  reviewer behavior.
+- A measured injection-resistance rate. Isolation is structural today, and how a
+  model behaves when a diff argues with it is unmeasured until the benchmark
+  runs adversarial cases against a real seat.
 - A second, independent seat, merged so that disagreement between seats stays
   visible instead of being averaged away.
 - A labeled benchmark corpus, and a scorecard regenerated from it by one command.

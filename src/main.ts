@@ -12,6 +12,7 @@ import * as github from '@actions/github';
 import { parseConfig } from './config.js';
 import { charBudgetForTokens, planDiffBudget } from './ingest/budget.js';
 import { toDiffFiles } from './ingest/files.js';
+import { assembleReviewPrompt, createRunNonce } from './prompt/assemble.js';
 import { findReviewComment } from './render/comment.js';
 import { renderSkeletonBody } from './render/skeleton.js';
 
@@ -94,10 +95,22 @@ async function run(): Promise<void> {
     `Queued ${plan.included.length} file(s) using ${plan.charsUsed} of ${plan.charBudget} budgeted characters. Dropped ${plan.dropped.length}.`,
   );
 
-  await upsertSummaryComment(octokit, { owner, repo, number }, renderSkeletonBody({ config, plan }));
+  // Assembled but not yet sent anywhere. No seat calls a model in this release.
+  const prompt = assembleReviewPrompt({ plan, nonce: createRunNonce() });
+
+  core.info(
+    `Prompt version ${prompt.promptVersion}, ${prompt.data.length} characters inside the data region.`,
+  );
+
+  await upsertSummaryComment(
+    octokit,
+    { owner, repo, number },
+    renderSkeletonBody({ config, plan, promptVersion: prompt.promptVersion }),
+  );
 
   core.setOutput('files-reviewed', plan.included.length);
   core.setOutput('files-dropped', plan.dropped.length);
+  core.setOutput('prompt-version', prompt.promptVersion);
 }
 
 run().catch((error: unknown) => {
