@@ -62,6 +62,35 @@ export async function runCase(benchCase: BenchCase, deps: RunnerDeps): Promise<C
     charBudget: charBudgetForTokens(deps.tokenCeiling),
   });
 
+  const notScorable = (reason: string): CaseRun => ({
+    benchCase,
+    findings: [],
+    reviewed: false,
+    notReviewedReason: reason,
+    usage: { inputTokens: 0, outputTokens: 0 },
+    costUsd: deps.prices === null ? null : 0,
+    latencyMs: 0,
+  });
+
+  // Mirrors the gate, which reports an empty plan as a review that did not
+  // run. Scoring it instead would read a ceiling too small to fit anything as
+  // a seat that missed every defect.
+  if (plan.included.length === 0) {
+    return notScorable('the diff budget left no file to review');
+  }
+
+  // A label on a file the budget withheld cannot be scored fairly: the seat
+  // never saw that file, so its label would become a miss nothing could avoid.
+  const withheld = benchCase.expected
+    .map((label) => label.path)
+    .filter((path) => !plan.included.some((file) => file.path === path));
+
+  if (withheld.length > 0) {
+    return notScorable(
+      `the diff budget withheld a labeled file: ${[...new Set(withheld)].join(', ')}`,
+    );
+  }
+
   // A fresh token per case, exactly as a real run mints one. A shared token
   // would let one case's diff carry a delimiter another case could forge.
   const prompt = assembleReviewPrompt({ plan, nonce: createRunNonce() });

@@ -113,3 +113,38 @@ test('reports nothing at all for a clean case a seat left alone', () => {
     falseNegatives: [],
   });
 });
+
+test('finds an assignment that maximizes hits instead of taking the nearest first', () => {
+  // Labels at 10 and 12, findings at 8 and 10. Nearest-first gives label 10 the
+  // finding at 10, leaving label 12 with nothing in range: one hit, one miss,
+  // one invention. A valid one-to-one assignment exists where both findings
+  // land inside tolerance of a label, so both located a seeded defect and
+  // counting either as an invention would be false.
+  const result = matchFindings([reported(8), reported(10)], [label(10), label(12)]);
+
+  expect(result.matched).toHaveLength(2);
+  expect(result.falsePositives).toEqual([]);
+  expect(result.falseNegatives).toEqual([]);
+});
+
+test('still maximizes hits when the findings arrive in the other order', () => {
+  const result = matchFindings([reported(10), reported(8)], [label(10), label(12)]);
+
+  expect(result.matched).toHaveLength(2);
+});
+
+test('orders labels by severity too, so a tie cannot depend on input order', () => {
+  const findings = [reported(9, { severity: 'P1' }), reported(11, { severity: 'P2' })];
+  const forward = matchFindings(findings, [
+    label(10, { severity: 'P1' }),
+    label(10, { severity: 'P2' }),
+  ]);
+  const reverse = matchFindings(findings, [
+    label(10, { severity: 'P2' }),
+    label(10, { severity: 'P1' }),
+  ]);
+
+  expect(forward.matched.map((pair) => [pair.expected.severity, pair.reported.line])).toEqual(
+    reverse.matched.map((pair) => [pair.expected.severity, pair.reported.line]),
+  );
+});

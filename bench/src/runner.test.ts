@@ -215,3 +215,39 @@ test('forces the findings tool on every call', async () => {
 
   expect(calls[0]?.instructions).toContain(FINDINGS_TOOL_NAME);
 });
+
+test('does not score a case whose labeled file the budget withheld', async () => {
+  // Validation checks a label against the files the run sent, but scoring
+  // compares against every label on the case. A budget that withholds the
+  // labeled file would turn its label into a miss the seat could never have
+  // avoided, since it never saw the file.
+  const { seat } = seatReturning(foundIt);
+  const twoFiles: BenchCase = {
+    ...benchCase,
+    files: [
+      ...benchCase.files,
+      { path: 'dist/bundle.js', patch: '@@ -1,1 +1,2 @@\n+generated\n+output\n' },
+    ],
+    expected: [
+      ...benchCase.expected,
+      { path: 'dist/bundle.js', line: 1, severity: 'P1', category: 'other' },
+    ],
+  };
+
+  const result = await runCase(twoFiles, deps(seat));
+
+  expect(result.reviewed).toBe(false);
+  expect(result.notReviewedReason).toMatch(/withheld/i);
+});
+
+test('does not score a case the budget emptied entirely', async () => {
+  // The production gate reports an empty plan as a review that did not run.
+  // The harness has to agree, or a ceiling too small to fit anything would
+  // score as a seat that missed every defect.
+  const { seat, calls } = seatReturning(foundIt);
+
+  const result = await runCase(benchCase, deps(seat, { tokenCeiling: 1 }));
+
+  expect(calls).toHaveLength(0);
+  expect(result.reviewed).toBe(false);
+});

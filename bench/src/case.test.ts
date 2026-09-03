@@ -12,7 +12,7 @@ function raw(overrides: Record<string, unknown> = {}): Record<string, unknown> {
       {
         path: 'src/users.ts',
         patch: [
-          '@@ -8,3 +8,4 @@',
+          '@@ -8,3 +8,3 @@',
           ' export async function findUser(id: string) {',
           "-  return db.query('SELECT * FROM users WHERE id = $1', [id]);",
           '+  return db.query(`SELECT * FROM users WHERE id = ${id}`);',
@@ -38,7 +38,7 @@ test('parses a well-formed case and joins its patch into text', () => {
 
 test('rejects an expected finding on a file the case does not contain', () => {
   const { problems } = parseCase(
-    raw({ expected: [{ path: 'src/other.ts', line: 10, severity: 'P1', category: 'x' }] }),
+    raw({ expected: [{ path: 'src/other.ts', line: 10, severity: 'P1', category: 'sql-injection' }] }),
     'bad.json',
   );
 
@@ -50,7 +50,7 @@ test('rejects an expected finding on a line its own patch does not touch', () =>
   // outside its own diff would score every seat as wrong, and the gate would be
   // blamed for a defect in the ruler.
   const { problems } = parseCase(
-    raw({ expected: [{ path: 'src/users.ts', line: 400, severity: 'P1', category: 'x' }] }),
+    raw({ expected: [{ path: 'src/users.ts', line: 400, severity: 'P1', category: 'sql-injection' }] }),
     'bad.json',
   );
 
@@ -59,7 +59,7 @@ test('rejects an expected finding on a line its own patch does not touch', () =>
 
 test('rejects a severity outside the published scale', () => {
   const { problems } = parseCase(
-    raw({ expected: [{ path: 'src/users.ts', line: 10, severity: 'P0', category: 'x' }] }),
+    raw({ expected: [{ path: 'src/users.ts', line: 10, severity: 'P0', category: 'sql-injection' }] }),
     'bad.json',
   );
 
@@ -188,4 +188,92 @@ test('accepts a corpus of distinct cases', () => {
   expect(validateCorpus([good('sql-001'), good('sql-002'), good('clean-001', 'clean')])).toEqual(
     [],
   );
+});
+
+test('rejects a hunk header whose declared new count does not match its body', () => {
+  // The hole this closes: parseHunkRanges trusts the header, so a header
+  // claiming 100 new lines makes lines 1 to 100 anchorable even when the body
+  // holds one. A label on a line that does not exist would then be scored.
+  const { problems } = parseCase(
+    raw({
+      files: [{ path: 'src/users.ts', patch: ['@@ -1,1 +1,100 @@', '+safe'] }],
+      expected: [{ path: 'src/users.ts', line: 99, severity: 'P1', category: 'sql-injection' }],
+    }),
+    'bad.json',
+  );
+
+  expect(problems.join(' ')).toMatch(/hunk header/i);
+  expect(problems.join(' ')).toMatch(/100/);
+});
+
+test('rejects a hunk header whose declared old count does not match its body', () => {
+  const { problems } = parseCase(
+    raw({
+      files: [{ path: 'src/users.ts', patch: ['@@ -1,9 +1,1 @@', '+safe'] }],
+      expected: [{ path: 'src/users.ts', line: 1, severity: 'P1', category: 'sql-injection' }],
+    }),
+    'bad.json',
+  );
+
+  expect(problems.join(' ')).toMatch(/hunk header/i);
+});
+
+test('rejects a body line with no diff prefix, which is not a patch', () => {
+  const { problems } = parseCase(
+    raw({
+      files: [{ path: 'src/users.ts', patch: ['@@ -1,1 +1,1 @@', 'no prefix here'] }],
+      expected: [{ path: 'src/users.ts', line: 1, severity: 'P1', category: 'sql-injection' }],
+    }),
+    'bad.json',
+  );
+
+  expect(problems.join(' ')).toMatch(/prefix/i);
+});
+
+test('accepts the no-newline-at-end-of-file marker git emits', () => {
+  const { problems } = parseCase(
+    raw({
+      files: [
+        {
+          path: 'src/users.ts',
+          patch: ['@@ -1,1 +1,1 @@', '-old', '+new', '\\ No newline at end of file'],
+        },
+      ],
+      expected: [{ path: 'src/users.ts', line: 1, severity: 'P1', category: 'sql-injection' }],
+    }),
+    'ok.json',
+  );
+
+  expect(problems).toEqual([]);
+});
+
+test('rejects a label whose category the findings schema cannot express', () => {
+  // A category no seat can emit is an automatic miss, and the scorecard would
+  // blame the seat for a gap in the taxonomy.
+  const { problems } = parseCase(
+    raw({
+      expected: [
+        { path: 'src/users.ts', line: 10, severity: 'P1', category: 'quantum-entanglement' },
+      ],
+    }),
+    'bad.json',
+  );
+
+  expect(problems.join(' ')).toMatch(/quantum-entanglement/);
+});
+
+test('rejects two labels on the same line of the same file', () => {
+  // One finding can satisfy only one label, so the duplicate becomes a miss
+  // that no seat could ever avoid.
+  const { problems } = parseCase(
+    raw({
+      expected: [
+        { path: 'src/users.ts', line: 10, severity: 'P1', category: 'sql-injection' },
+        { path: 'src/users.ts', line: 10, severity: 'P2', category: 'sql-injection' },
+      ],
+    }),
+    'bad.json',
+  );
+
+  expect(problems.join(' ')).toMatch(/more than one label/i);
 });

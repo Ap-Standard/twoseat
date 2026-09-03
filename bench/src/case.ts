@@ -14,7 +14,12 @@
  * any other codebase.
  */
 import { isAnchoredInDiff, parseHunkRanges } from '../../src/findings/anchors.js';
-import { SEVERITIES, type Severity } from '../../src/findings/model.js';
+import {
+  CATEGORIES,
+  SEVERITIES,
+  type Category,
+  type Severity,
+} from '../../src/findings/model.js';
 
 export type CaseKind = 'defect' | 'clean' | 'injection';
 
@@ -91,7 +96,89 @@ function parseFile(value: unknown, index: number): FileProblem {
     };
   }
 
+  const structural = checkPatchStructure(path, lines as string[]);
+  if (structural.length > 0) {
+    return { problems: structural };
+  }
+
   return { file: { path, patch }, problems: [] };
+}
+
+const HUNK_HEADER_COUNTS = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+
+/**
+ * Reconciles every hunk header with the body that follows it.
+ *
+ * parseHunkRanges trusts the header, which is right for a real diff from the
+ * API and wrong for a hand-written case. A header claiming a hundred new lines
+ * above a one-line body makes a hundred lines anchorable, so a label on a line
+ * that does not exist would pass the anchor check and be scored against a seat
+ * that could never have seen it.
+ */
+function checkPatchStructure(path: string, lines: readonly string[]): string[] {
+  const problems: string[] = [];
+  let header: { line: string; oldCount: number; newCount: number } | null = null;
+  let oldSeen = 0;
+  let newSeen = 0;
+
+  const settle = (): void => {
+    if (header === null) {
+      return;
+    }
+    if (newSeen !== header.newCount) {
+      problems.push(
+        `${path}: hunk header ${header.line} declares ${String(header.newCount)} new ` +
+          `line(s), body has ${String(newSeen)}`,
+      );
+    }
+    if (oldSeen !== header.oldCount) {
+      problems.push(
+        `${path}: hunk header ${header.line} declares ${String(header.oldCount)} old ` +
+          `line(s), body has ${String(oldSeen)}`,
+      );
+    }
+  };
+
+  for (const line of lines) {
+    const match = HUNK_HEADER_COUNTS.exec(line);
+    if (match !== null) {
+      settle();
+      header = {
+        line: line.split('@@')[1] === undefined ? line : `@@${line.split('@@')[1] ?? ''}@@`,
+        oldCount: match[2] === undefined ? 1 : Number(match[2]),
+        newCount: match[4] === undefined ? 1 : Number(match[4]),
+      };
+      oldSeen = 0;
+      newSeen = 0;
+      continue;
+    }
+
+    if (header === null) {
+      problems.push(`${path}: content appears before the first hunk header`);
+      continue;
+    }
+
+    const prefix = line[0];
+    if (prefix === ' ') {
+      oldSeen += 1;
+      newSeen += 1;
+    } else if (prefix === '+') {
+      newSeen += 1;
+    } else if (prefix === '-') {
+      oldSeen += 1;
+    } else if (line.startsWith('\\')) {
+      // `\ No newline at end of file`, which git emits and which counts as
+      // neither an old nor a new line.
+      continue;
+    } else {
+      problems.push(
+        `${path}: patch line ${JSON.stringify(line)} has no diff prefix, so it is not a patch`,
+      );
+    }
+  }
+
+  settle();
+  return problems;
 }
 
 function parseExpected(
@@ -111,7 +198,16 @@ function parseExpected(
 
   const problems: string[] = [];
   if (path === null) problems.push(`expected[${String(index)}] has no path`);
-  if (category === null) problems.push(`expected[${String(index)}] has no category`);
+  if (category === null) {
+    problems.push(`expected[${String(index)}] has no category`);
+  } else if (!CATEGORIES.includes(category as Category)) {
+    // A category no seat can emit is an automatic miss, and the scorecard
+    // would blame the seat for a gap in the taxonomy.
+    problems.push(
+      `expected[${String(index)}] category ${JSON.stringify(category)} is not one the ` +
+        'findings schema can express',
+    );
+  }
   if (severity === null || !SEVERITIES.includes(severity as Severity)) {
     problems.push(
       `expected[${String(index)}] severity ${JSON.stringify(severity)} is outside the published scale`,
@@ -199,6 +295,17 @@ export function parseCase(value: unknown, source: string): ParsedCase {
       expected.push(parsed.expected);
     }
   });
+
+  // One finding satisfies one label, so two labels on the same line create a
+  // miss no seat could avoid.
+  const seenLabels = new Set<string>();
+  for (const label of expected) {
+    const key = `${label.path}:${String(label.line)}`;
+    if (seenLabels.has(key)) {
+      problems.push(`${label.path} line ${String(label.line)} carries more than one label`);
+    }
+    seenLabels.add(key);
+  }
 
   const injection = readString(raw, 'injection');
 

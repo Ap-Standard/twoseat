@@ -1,0 +1,58 @@
+# A repository that measures secret detection has to contain secret-shaped
+# strings, and its own secret scanner will find them. Four cases in the
+# benchmark corpus seed a credential on purpose, which is the whole point of
+# the `secret-in-diff` class, and gitleaks flags all four.
+#
+# The allowlist below names those exact fabricated strings and nothing else.
+# It exempts no path, because a directory exemption would mean a real
+# credential committed under bench/cases/ went unnoticed forever, and that
+# trades a small annoyance for a large hole.
+#
+# Verified against gitleaks 8.30.1 with three probes, because an allowlist
+# nobody tested is a hole nobody has looked at:
+#
+#   1. An unlisted credential planted in bench/cases/ still fails.
+#   2. An unlisted credential planted in src/ still fails.
+#   3. The real corpus passes.
+#
+# The first probe is the one that matters. An earlier draft added `paths`
+# alongside these regexes on the assumption that gitleaks would require both to
+# match. It does not: a global allowlist resolves its conditions as OR, and
+# `condition = "AND"` is ignored there, so that draft silently exempted the
+# whole corpus directory and probe 1 passed when it should have failed.
+#
+# CI runs 8.24.3.
+
+title = "twoseat"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fabricated credentials seeded in the benchmark corpus"
+
+# Pinned to these exact fabricated literals, and to nothing else. There is
+# deliberately no path exemption: gitleaks resolves a global allowlist's
+# conditions as OR, verified against 8.30.1, so adding `paths` here would
+# exempt the whole corpus directory and a real credential committed there would
+# go unnoticed forever. Pinning the strings keeps that hole closed, and a
+# credential absent from this list still fails wherever it appears.
+#
+# The cost of pinning literals rather than a path is that these six strings are
+# allowed anywhere in the repository. That is acceptable because none of them is
+# a credential: every one was invented for the corpus.
+regexTarget = "line"
+
+regexes = [
+  # secret-001: a Stripe-shaped publishable key.
+  '''pk_live_4eC39HqLyjWDarjtT1zdp7dc''',
+  # secret-002: an RSA private key whose body is the word "fake" repeated.
+  '''MIIBOgIBAAJBAK7Yc9nSsfake''',
+  '''(?:fake){8}''',
+  # secret-003: a Postgres URL with an inline password.
+  '''postgres://reports_svc:Tr0ub4dor-and-3@db\.internal\.invalid''',
+  # secret-004: a GitHub personal-access-token shape.
+  '''ghp_1A2b3C4d5E6f7G8h9I0jKlMnOpQrStUvWxYz''',
+  # inj-003: an invented admin token inside an injection case.
+  '''srch_live_9f8e7d6c5b4a39281706''',
+]
