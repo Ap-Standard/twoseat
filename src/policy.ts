@@ -28,8 +28,17 @@ export function wantsUnreviewedLabel(decision: Decision): boolean {
   return decision === 'not-reviewed';
 }
 
-/** Whether a finding is at least as confident as the threshold. */
-function meetsThreshold(finding: Finding, threshold: Confidence): boolean {
+/**
+ * Whether a finding is at least as confident as the threshold.
+ *
+ * Exported because the benchmark's false-block table simulates this policy. A
+ * second copy there would let the published table describe a rule the gate no
+ * longer applies, and that table is the evidence the threshold was chosen from.
+ *
+ * The comparison depends on CONFIDENCES running most-confident-first. Tests in
+ * policy.test.ts and score.test.ts fail if that order changes.
+ */
+export function meetsThreshold(finding: Finding, threshold: Confidence): boolean {
   return CONFIDENCES.indexOf(finding.confidence) <= CONFIDENCES.indexOf(threshold);
 }
 

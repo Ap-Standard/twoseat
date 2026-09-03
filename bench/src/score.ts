@@ -27,6 +27,10 @@ import {
   type Severity,
 } from '../../src/findings/model.js';
 import type { Usage } from '../../src/cost.js';
+// The action's own threshold rule, not a copy of it. The false-block table is
+// the evidence a threshold gets chosen from, so it has to simulate the policy
+// the gate actually applies.
+import { meetsThreshold } from '../../src/policy.js';
 import type { BenchCase } from './case.js';
 import { matchFindings } from './match.js';
 
@@ -159,11 +163,6 @@ class Tally {
     }
     return out;
   }
-}
-
-/** Whether a finding is at least as confident as the threshold. */
-function meetsThreshold(finding: Finding, threshold: Confidence): boolean {
-  return CONFIDENCES.indexOf(finding.confidence) <= CONFIDENCES.indexOf(threshold);
 }
 
 export function scoreCorpus(runs: readonly CaseRun[]): Scorecard {
