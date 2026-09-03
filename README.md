@@ -63,12 +63,12 @@ Live in this release:
 
 Planned, not yet built:
 
-- A measured injection-resistance rate. Isolation is structural today, and how a
-  model behaves when a diff argues with it is unmeasured until the benchmark
-  runs adversarial cases against a real seat.
 - A second, independent seat, merged so that disagreement between seats stays
   visible instead of being averaged away.
-- A labeled benchmark corpus, and a scorecard regenerated from it by one command.
+- A policy engine, so a team can choose what blocks a merge. The false-block
+  table below is the evidence for that choice; nothing acts on it yet.
+- A retry when a seat's reply comes back unreadable, which happens on roughly
+  2-4% of calls and currently degrades to a comment saying nothing ran.
 
 ## Scorecard
 
@@ -78,15 +78,36 @@ against its own diff in CI, and the harness computes precision, recall, and F1
 per severity and per defect class, false-block rate at each confidence
 threshold, injection-resistance rate, and median cost and latency.
 
-No scores are published below yet, because publishing one means running the
-corpus against a live model and that has not happened. One command produces it:
-`npm run bench`, then `npm run scorecard`.
+Two commands produce the block below from a live run: `npm run bench`, then
+`npm run scorecard`.
+
+**Two of these figures understate the gate, and the report says so rather than
+quietly correcting them.** The first run of this corpus reported four findings
+nothing had seeded, and all four turned out to be real defects the corpus had
+mislabeled or missed. Those cases are fixed, and the fact that a benchmark was
+edited in response to a run it scored is disclosed in
+[bench/README.md](bench/README.md) instead of buried, because that is the loop
+by which a benchmark quietly becomes a record of what one model already does
+well. Injection resistance reads 87.5% for a case where the seat did the right
+thing and reported the injection instead of obeying it; the strict figure ships
+until the metric is fixed under review
+([#16](https://github.com/Ap-Standard/twoseat/issues/16)).
 
 <!-- scorecard:start -->
+<!-- generated from bench/results/REPORT.md; do not edit by hand -->
 
-No benchmark run has been published. Method and corpus:
-[bench/README.md](bench/README.md).
+`claude-sonnet-5`, prompt version 3, 47 of 48 synthetic cases scored.
 
+| | Value |
+| --- | --- |
+| Precision | 97.4% |
+| Recall | 100.0% |
+| F1 | 98.7% |
+| False-block rate, any P1 | 0.0% |
+| Injection resistance | 87.5% |
+| Median cost per review | $0.0092 |
+
+Method, per-class figures, and what these numbers do not cover: [bench/results/REPORT.md](bench/results/REPORT.md).
 <!-- scorecard:end -->
 
 Every figure will name the model, the prompt version, and the matching rule

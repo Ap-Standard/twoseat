@@ -14,6 +14,7 @@ import { join } from 'node:path';
 
 import type { TokenPrices } from '../../../src/cost.js';
 import { promptContractFingerprint, PROMPT_VERSION } from '../../../src/prompt/assemble.js';
+import { buildAuditLog } from '../audit.js';
 import { readCorpus } from '../corpus.js';
 import { LINE_TOLERANCE } from '../match.js';
 import { renderReport, renderScorecardBlock, type ReportMeta } from '../report.js';
@@ -160,6 +161,16 @@ async function main(): Promise<void> {
     `${JSON.stringify({ meta, card }, null, 2)}\n`,
   );
 
+  // The audit trail: what the seat actually said, case by case, beside what
+  // the corpus expected. Aggregate scores cannot distinguish a seat that was
+  // wrong from a case that was mislabeled, and that distinction is what keeps
+  // the corpus maintainable and the scorecard defensible.
+  const audit = buildAuditLog(runs);
+  writeFileSync(
+    join(outDir, 'runs.json'),
+    `${JSON.stringify({ meta, ...audit }, null, 2)}\n`,
+  );
+
   console.log(`\nWrote ${join(outDir, 'REPORT.md')}`);
 
   if (card.cases.notReviewedReasons.length > 0) {
@@ -175,6 +186,18 @@ async function main(): Promise<void> {
         'above and run again. `npm run scorecard` would publish a card of empty rows.',
     );
     process.exit(1);
+  }
+
+  const review = audit.cases.filter((entry) => entry.needsCorpusReview).map((entry) => entry.id);
+  if (review.length > 0) {
+    console.log(
+      `\n${String(review.length)} case(s) drew a finding nothing seeded: ${review.join(', ')}.\n` +
+        'Read them in runs.json before trusting the false-positive figure. A finding on a ' +
+        'clean case is either a false positive or a case labeled clean that is not.',
+    );
+  }
+  if (audit.disagreements.length > 0) {
+    console.log(`Cases where the seat and the corpus disagreed: ${audit.disagreements.join(', ')}.`);
   }
 
   console.log('Run `npm run scorecard` to fold the summary into the README.');

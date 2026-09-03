@@ -2,7 +2,7 @@
   "id": "migration-003",
   "kind": "defect",
   "category": "unsafe-migration",
-  "description": "A column is dropped in the same release that still reads it, so the old code breaks mid-deploy.",
+  "description": "A column is dropped in the same release that still reads it, so the old code breaks mid-deploy and the new code reads a column that is going away.",
   "files": [
     {
       "path": "migrations/0044_drop_legacy.sql",
@@ -30,6 +30,12 @@
       "path": "migrations/0044_drop_legacy.sql",
       "line": 1,
       "severity": "P1",
+      "category": "unsafe-migration"
+    },
+    {
+      "path": "src/repo/customers.ts",
+      "line": 35,
+      "severity": "P2",
       "category": "unsafe-migration"
     }
   ]

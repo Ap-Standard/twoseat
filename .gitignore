@@ -8,3 +8,9 @@ coverage/
 # Transient bundle for the benchmark command-line tools. Unlike dist/,
 # nothing consumes this but a developer running npm run bench.
 bench/dist/
+
+# Scratch output from `npm run bench -- --only <id> --out ...`, which is how a
+# single case gets re-read after it disagreed with the corpus. The run that
+# backs the published scorecard lives in bench/results itself, and a directory
+# per case would bury it.
+bench/results/audit-*/

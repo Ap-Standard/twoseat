@@ -124,6 +124,30 @@ test('says no cost was measured when no prices were supplied', () => {
   expect(out).toMatch(/no token prices/i);
 });
 
+test('keeps the cost rows attached to their table header', () => {
+  // A blank line between a Markdown separator row and the rows below it ends
+  // the table. The rows then render as loose pipe-delimited text, which looks
+  // like a rendering accident in the one section a reader checks for a price.
+  const lines = renderReport(card, meta).split('\n');
+  const separator = lines.findIndex(
+    (line, index) => line === '| --- | --- |' && lines[index - 1] === '| | Value |',
+  );
+
+  expect(separator).toBeGreaterThan(-1);
+  expect(lines[separator + 1]).toMatch(/Median cost per case/);
+});
+
+test('emits no cost table at all when there are no prices to put in it', () => {
+  // An empty table is worse than a missing one. It reads as a measurement that
+  // came back blank rather than one that was never taken.
+  const out = renderReport(
+    { ...card, cost: { medianUsd: null, totalUsd: null } },
+    { ...meta, prices: null },
+  );
+
+  expect(out).not.toMatch(/\| \| Value \|/);
+});
+
 test('renders the same bytes for the same input', () => {
   // The report is committed, so a rerun that changes nothing must produce no
   // diff. A timestamp read inside the renderer would break that.

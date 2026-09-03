@@ -110,17 +110,27 @@ function samplingNote(meta: ReportMeta): string[] {
   ];
 }
 
+/**
+ * The cost section, its table header included.
+ *
+ * The header lives here rather than at the call site because there is nothing
+ * to tabulate without prices, and a header with no rows under it reads as a
+ * measurement that came back blank instead of one that was never taken.
+ */
 function costLines(card: Scorecard, meta: ReportMeta): string[] {
   if (meta.prices === null) {
     return [
-      '',
       'Cost is not reported: no token prices were supplied to this run, and the ' +
         'harness does not guess a price.',
     ];
   }
 
   return [
-    '',
+    // No blank line between the separator and the rows. One there closes the
+    // table, and the figures then render as loose pipe-delimited text in the
+    // one section a reader checks for a price.
+    '| | Value |',
+    '| --- | --- |',
     `| Median cost per case | ${usd(card.cost.medianUsd)} |`,
     `| Total cost of the run | ${usd(card.cost.totalUsd)} |`,
     `| Median latency per case | ${String(Math.round(card.latency.medianMs))} ms |`,
@@ -237,8 +247,6 @@ export function renderReport(card: Scorecard, meta: ReportMeta): string {
     '',
     '## Cost and latency',
     '',
-    '| | Value |',
-    '| --- | --- |',
     ...costLines(card, meta),
     ...failureLines(card),
     '',
