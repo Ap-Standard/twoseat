@@ -21,14 +21,18 @@
 # `condition = "AND"` is ignored there, so that draft silently exempted the
 # whole corpus directory and probe 1 passed when it should have failed.
 #
-# CI runs 8.24.3.
+# The singular `[allowlist]` table is used rather than the `[[allowlists]]`
+# array, because the array form does not exist in older gitleaks and is
+# silently ignored there. That cost one red CI run: the array form passed
+# locally on 8.30.1 and was skipped entirely by 8.24.3 in CI, so the workflow
+# now pins GITLEAKS_VERSION and local and CI agree by construction.
 
 title = "twoseat"
 
 [extend]
 useDefault = true
 
-[[allowlists]]
+[allowlist]
 description = "Fabricated credentials seeded in the benchmark corpus"
 
 # Pinned to these exact fabricated literals, and to nothing else. There is
