@@ -89,10 +89,19 @@ request. Three things that text must not be able to do:
   so a mention reads correctly to a person and pings nobody.
 - **Reach another repository.** A hash against a digit gets the same treatment,
   so a cross-reference cannot attach this pull request to an unrelated issue.
-- **Render markup.** The opening angle bracket is escaped, which disables every
-  tag. Without that, a finding could carry an image whose URL is fetched the
-  moment a reviewer opens the pull request, turning a comment into a read
-  receipt.
+- **Fetch anything.** The opening angle bracket is escaped, which disables every
+  HTML tag, and the opening square bracket is escaped, which disables markdown
+  links and images. Both are needed: markdown image syntax requires no angle
+  bracket to make a reviewer's browser fetch an attacker's URL on page load, so
+  escaping HTML alone leaves that beacon open. The second reviewer seat found
+  exactly that gap after the first version of this document claimed the hole
+  was closed.
+
+The escapes run in a fixed order, and the order carries weight. Every numeric
+entity introduced here contains a hash against a digit, which is precisely what
+the cross-reference step matches, so any step that introduces one must run
+after it. Getting that order wrong produced two separate bugs during this work,
+so the property is now asserted directly instead of case by case.
 
 Newlines collapse to spaces, so a finding cannot add its own headings or table
 rows to a comment whose structure the action owns. Backtick runs shorten, so a
@@ -103,6 +112,15 @@ characters and details at 800.
 Escaping the opening angle bracket has a second effect worth naming: it makes
 the action's own HTML comment marker unreproducible in seat text, so a finding
 cannot plant a decoy marker for a later run to latch onto.
+
+### The key is redacted here, not only masked
+
+`core.setSecret` masks a value in the run log and does nothing to a comment
+body. A diff that commits a credential is exactly the kind of defect a seat
+should report, and reporting it means quoting it, so the gate strips the key
+from every string bound for a comment before rendering it. Invisible characters
+come out first, because a key split by a zero-width mark would survive an
+exact-string redaction and a later render would reassemble it.
 
 ## Cost
 
@@ -120,14 +138,39 @@ never guesses a price.
 
 ### The ceiling
 
-`cost-ceiling-usd` is checked before the seat is called, against the most the
-run could possibly cost: the estimated input plus the entire output allowance.
-A ceiling checked against a likely response length is not a ceiling, and a
-ceiling checked after the call is not one either.
+`cost-ceiling-usd` is checked before the seat is called, and against the worst
+the run is allowed to do rather than the likely case: the whole output
+allowance is billed, not an expected reply length. A ceiling checked after the
+call is not a ceiling, and neither is one checked against an optimistic guess.
+
+**The bound is conservative, not proven.** Counting real tokens needs a
+per-model tokenizer, which this action does not carry, so the pre-flight prices
+characters instead. The diff budget packs at four characters per token, a
+typical ratio. The ceiling uses two, because dense or non-Latin text tokenizes
+closer to that and a typical ratio would price such a diff at half its real
+cost and wave it through. Both numbers are approximations. The ceiling is
+enforced against the pessimistic one, and this paragraph is the method behind
+the figure rather than a claim of certainty.
+
+The estimate also counts the tool schema, which travels with every request.
 
 The dollar ceiling has no effect without configured rates, because there is no
-spend figure to compare against it. The comment states that rather than leaving
-a reader to assume a limit that is not running. The token ceiling always applies.
+spend figure to compare against it. A run that has a key and no rates says so
+twice: in the comment, and as a warning in the run log, since whoever is paying
+reads one and not always the other. The token ceiling always applies.
+
+## Variance between runs
+
+The seat is asked for temperature zero, which reduces run-to-run variance. It
+does not remove it. A model is not guaranteed deterministic at any temperature,
+and the marker token in the data region is minted fresh for every run by
+design, because a predictable delimiter would be a forgeable one.
+
+Two runs over the same commit can therefore report different findings.
+Everything around the seat is deterministic: the diff plan, the validation, the
+ordering, and the rendering are pure functions of their inputs. Comparability
+of scores comes from pinning the prompt version and fixing the corpus, not from
+expecting one review to reproduce another exactly.
 
 ## What none of this measures
 

@@ -1,6 +1,30 @@
 import { expect, test } from 'vitest';
 
-import { MAX_DETAIL_CHARS, MAX_FINDINGS, MAX_TITLE_CHARS, parseSeatFindings } from './parse.js';
+import {
+  isFindingsPayload,
+  MAX_DETAIL_CHARS,
+  MAX_FINDINGS,
+  MAX_TITLE_CHARS,
+  parseSeatFindings,
+} from './parse.js';
+
+test('recognizes a payload shaped like a findings list', () => {
+  expect(isFindingsPayload({ findings: [] })).toBe(true);
+  expect(isFindingsPayload({ findings: [{ path: 'a.ts' }] })).toBe(true);
+});
+
+test('refuses a payload that is not a findings list at all', () => {
+  // The distinction that matters: one bad entry among good ones is a rejection
+  // to count. A reply that is not a findings list is a protocol failure, and
+  // the caller has to report that the review did not run rather than render it
+  // as a review that found nothing.
+  expect(isFindingsPayload({})).toBe(false);
+  expect(isFindingsPayload({ findings: 'approved' })).toBe(false);
+  expect(isFindingsPayload('approved, ship it')).toBe(false);
+  expect(isFindingsPayload(null)).toBe(false);
+  expect(isFindingsPayload(undefined)).toBe(false);
+  expect(isFindingsPayload([])).toBe(false);
+});
 
 const files = [
   { path: 'src/app.ts', patch: '@@ -1,2 +10,3 @@\n a\n+b\n+c\n' },

@@ -112,6 +112,17 @@ async function run(): Promise<void> {
     core.warning(`Blocking is disabled for this run: ${config.blockingDisabledReason}`);
   }
 
+  if (config.apiKey !== null && config.tokenPrices === null) {
+    // The dollar ceiling looks like a live limit because it has a default, and
+    // it cannot run without rates. Say so in the log as well as the comment,
+    // since whoever is paying reads one and not always the other.
+    core.warning(
+      'This run spends money with no dollar ceiling: cost-ceiling-usd cannot be ' +
+        'enforced without input-price-per-mtok and output-price-per-mtok. The ' +
+        'token ceiling still applies.',
+    );
+  }
+
   const octokit = github.getOctokit(core.getInput('github-token', { required: true }));
   const { owner, repo, number } = github.context.issue;
 

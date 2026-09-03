@@ -12,6 +12,7 @@
  */
 import { FINDINGS_TOOL, FINDINGS_TOOL_NAME } from '../findings/model.js';
 import type { Usage } from '../cost.js';
+import { redactSecret, stripInvisible } from '../redact.js';
 
 export const ANTHROPIC_MESSAGES_URL = 'https://api.anthropic.com/v1/messages';
 
@@ -48,8 +49,15 @@ export interface SeatFailure {
 
 export type SeatOutcome = SeatSuccess | SeatFailure;
 
-function redact(message: string, apiKey: string): string {
-  return apiKey === '' ? message : message.split(apiKey).join('[redacted]');
+/**
+ * Sanitizes text from outside this process before it can be logged.
+ *
+ * Invisible characters come out first, then the key. A key split by a
+ * zero-width character would survive an exact-string redaction, and a later
+ * step that strips invisible characters would put it back together.
+ */
+function sanitize(message: string, apiKey: string): string {
+  return redactSecret(stripInvisible(message), apiKey);
 }
 
 function readUsage(body: Record<string, unknown>): Usage {
@@ -111,6 +119,11 @@ export async function callSeat(
     // action has to interpret, and interpreting a reply built from a hostile
     // diff is the thing this design avoids.
     tool_choice: { type: 'tool', name: FINDINGS_TOOL_NAME },
+    // A review is a measurement, so run-to-run variance is noise. This reduces
+    // it. It does not eliminate it: a model is not guaranteed deterministic at
+    // any temperature, which is why a score is only ever comparable within one
+    // prompt version and over a fixed corpus.
+    temperature: 0,
     messages: [{ role: 'user', content: request.data }],
   };
 
@@ -128,18 +141,24 @@ export async function callSeat(
     });
   } catch (error: unknown) {
     const detail = error instanceof Error ? error.message : String(error);
-    return { kind: 'failed', message: redact(`seat request failed: ${detail}`, request.apiKey) };
+    return {
+      kind: 'failed',
+      message: sanitize(`seat request failed: ${detail}`, request.apiKey),
+    };
   }
 
   if (!response.ok) {
     const raw = await response.text().catch(() => '');
-    const snippet = raw.slice(0, MAX_ERROR_BODY_CHARS).replace(/\s+/g, ' ').trim();
+    // Sanitize before truncating. Cutting first can slice a key across the
+    // boundary so that neither half matches the redaction, leaving a fragment
+    // of a live credential in a public log.
+    const snippet = sanitize(raw, request.apiKey)
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, MAX_ERROR_BODY_CHARS);
     return {
       kind: 'failed',
-      message: redact(
-        `seat API returned ${String(response.status)}: ${snippet}`,
-        request.apiKey,
-      ),
+      message: `seat API returned ${String(response.status)}: ${snippet}`,
     };
   }
 

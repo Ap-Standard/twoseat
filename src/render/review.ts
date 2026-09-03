@@ -17,6 +17,7 @@ import type { Finding, Severity } from '../findings/model.js';
 import type { RejectReason, RejectedFinding } from '../findings/parse.js';
 import { SEVERITIES } from '../findings/model.js';
 import type { BudgetPlan, DropReason } from '../ingest/budget.js';
+import { redactSecret } from '../redact.js';
 import { COMMENT_MARKER } from './comment.js';
 import { neutralizeForComment, neutralizePathForComment } from './text.js';
 
@@ -83,9 +84,23 @@ function countBySeverity(findings: readonly Finding[]): Map<Severity, number> {
   return counts;
 }
 
-function headline(outcome: ReviewOutcome): string {
+/**
+ * Prepares text that a seat, or an API talking to one, produced.
+ *
+ * Redaction comes before neutralizing. core.setSecret masks a value in the run
+ * log and does nothing for a comment body, so a diff that commits a credential
+ * and a seat that correctly reports it would otherwise publish that credential
+ * to a public pull request.
+ */
+type Scrub = (text: string) => string;
+
+function scrubber(config: Config): Scrub {
+  return (text) => neutralizeForComment(redactSecret(text, config.apiKey));
+}
+
+function headline(outcome: ReviewOutcome, scrub: Scrub): string {
   if (outcome.kind === 'not-reviewed') {
-    return `**The review did not run.** ${neutralizeForComment(outcome.reason)}`;
+    return `**The review did not run.** ${scrub(outcome.reason)}`;
   }
 
   const counts = countBySeverity(outcome.findings);
@@ -133,7 +148,7 @@ function costNote(input: ReviewCommentInput): string[] {
   return ['', `Cost is estimated from the token counts above, ${cost.basis}.`];
 }
 
-function findingLines(findings: readonly Finding[]): string[] {
+function findingLines(findings: readonly Finding[], scrub: Scrub): string[] {
   if (findings.length === 0) {
     return [];
   }
@@ -142,10 +157,10 @@ function findingLines(findings: readonly Finding[]): string[] {
   for (const finding of findings) {
     const anchor = `${neutralizePathForComment(finding.path)}:${String(finding.line)}`;
     lines.push(
-      `- **${finding.severity}** \`${anchor}\` **${neutralizeForComment(finding.title)}**`,
+      `- **${finding.severity}** \`${anchor}\` **${scrub(finding.title)}**`,
       `  Confidence ${finding.confidence}, reported by the ${finding.seat} seat ` +
         `running \`${neutralizePathForComment(finding.model)}\`.`,
-      `  ${neutralizeForComment(finding.detail)}`,
+      `  ${scrub(finding.detail)}`,
     );
   }
 
@@ -192,12 +207,13 @@ function discardedLines(outcome: ReviewOutcome): string[] {
 
 export function renderReviewBody(input: ReviewCommentInput): string {
   const { config, plan, promptVersion, outcome } = input;
+  const scrub = scrubber(config);
 
   const lines: string[] = [
     COMMENT_MARKER,
     '### twoseat',
     '',
-    headline(outcome),
+    headline(outcome, scrub),
     '',
     '| Field | Value |',
     '| --- | --- |',
@@ -213,7 +229,7 @@ export function renderReviewBody(input: ReviewCommentInput): string {
     ...costRows(input),
     `| Blocking | ${blockingCell(config)} |`,
     ...costNote(input),
-    ...findingLines(outcome.kind === 'reviewed' ? outcome.findings : []),
+    ...findingLines(outcome.kind === 'reviewed' ? outcome.findings : [], scrub),
     ...withheldLines(plan),
     ...discardedLines(outcome),
   ];

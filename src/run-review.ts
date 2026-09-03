@@ -11,8 +11,8 @@
  */
 import type { Config } from './config.js';
 import { estimateCostUsd, worstCaseCostUsd } from './cost.js';
-import { parseSeatFindings } from './findings/parse.js';
-import { estimateTokensFromChars, outputTokenBudget, type BudgetPlan } from './ingest/budget.js';
+import { isFindingsPayload, parseSeatFindings } from './findings/parse.js';
+import { outputTokenBudget, worstCaseTokensFromChars, type BudgetPlan } from './ingest/budget.js';
 import type { AssembledPrompt } from './prompt/assemble.js';
 import type { ReviewOutcome } from './render/review.js';
 import { callSeat, type SeatOutcome, type SeatRequest } from './seats/anthropic.js';
@@ -44,7 +44,7 @@ export async function runReview(
   const maxOutputTokens = outputTokenBudget(config.tokenCeiling);
 
   if (config.tokenPrices !== null) {
-    const inputTokens = estimateTokensFromChars(prompt.instructions.length + prompt.data.length);
+    const inputTokens = worstCaseTokensFromChars(prompt.billableChars);
     const worstCase = worstCaseCostUsd({ inputTokens, maxOutputTokens }, config.tokenPrices);
 
     if (worstCase > config.costCeilingUsd) {
@@ -67,6 +67,15 @@ export async function runReview(
 
   if (outcome.kind === 'failed') {
     return { kind: 'not-reviewed', reason: outcome.message };
+  }
+
+  if (!isFindingsPayload(outcome.toolInput)) {
+    // Zero findings plus one rejection would render as a clean review with a
+    // footnote, which is the most misleading comment this action could post.
+    return {
+      kind: 'not-reviewed',
+      reason: "The seat's reply could not be read as a findings list.",
+    };
   }
 
   const { findings, rejected } = parseSeatFindings(outcome.toolInput, {

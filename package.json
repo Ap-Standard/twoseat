@@ -12,6 +12,7 @@
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
+    "check:text": "node scripts/check-no-binary-source.mjs",
     "test": "vitest run"
   },
   "repository": {

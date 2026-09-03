@@ -113,6 +113,48 @@ test('caps how much of an error response it repeats into the run log', async () 
   expect(outcome.kind === 'failed' && outcome.message.length).toBeLessThan(400);
 });
 
+test('asks for the least run-to-run variance the API offers', async () => {
+  // A review is a measurement, so variance between identical runs is noise.
+  // This reduces it and does not eliminate it.
+  let sent: Record<string, unknown> = {};
+  const fetchImpl = ((_url: string, init: RequestInit) => {
+    sent = JSON.parse(init.body as string) as Record<string, unknown>;
+    return Promise.resolve(reply(toolReply));
+  }) as unknown as typeof fetch;
+
+  await callSeat(request, fetchImpl);
+
+  expect(sent['temperature']).toBe(0);
+});
+
+test('redacts a key an error body split with an invisible character', async () => {
+  // Exact-string redaction alone would miss this, and the comment renderer
+  // strips invisible characters, which would put the key back together.
+  const split = `${request.apiKey.slice(0, 8)}\u200b${request.apiKey.slice(8)}`;
+  const fetchImpl = (() =>
+    Promise.resolve(new Response(`upstream rejected ${split}`, { status: 401 }))) as unknown as typeof fetch;
+
+  const outcome = await callSeat(request, fetchImpl);
+
+  expect(outcome.kind === 'failed' && outcome.message).not.toContain(request.apiKey);
+  expect(outcome.kind === 'failed' && outcome.message).toContain('(redacted)');
+});
+
+test('redacts before truncating, so a key cannot straddle the cut', async () => {
+  // Slicing first can leave a fragment of a live credential that no longer
+  // matches the redaction.
+  const padding = 'x'.repeat(190);
+  const fetchImpl = (() =>
+    Promise.resolve(
+      new Response(`${padding}${request.apiKey}`, { status: 500 }),
+    )) as unknown as typeof fetch;
+
+  const outcome = await callSeat(request, fetchImpl);
+  const message = outcome.kind === 'failed' ? outcome.message : '';
+
+  expect(message).not.toContain(request.apiKey.slice(0, 20));
+});
+
 test('never repeats the api key into a failure message', async () => {
   // A client that echoes its own request into an error is not hypothetical, and
   // Actions logs are public on a public repository.

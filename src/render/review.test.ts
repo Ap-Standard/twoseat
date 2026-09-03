@@ -221,6 +221,38 @@ test('names the second seat as not configured for a single-seat run', () => {
   expect(renderReviewBody(reviewed)).toMatch(/not configured/i);
 });
 
-test('never puts the api key in the comment', () => {
+test('redacts the api key from a finding that quotes it', () => {
+  // The ugly case, and the likely one: a diff commits a credential, the seat
+  // correctly reports it, and the gate posts the credential to a public
+  // comment. core.setSecret masks the run log and does nothing for a comment.
+  const key = config.apiKey ?? '';
+  const body = renderReviewBody({
+    ...reviewed,
+    outcome: {
+      kind: 'reviewed',
+      findings: [
+        { ...finding, title: `hardcoded key ${key}`, detail: `remove ${key} from line 2` },
+      ],
+      rejected: [],
+      usage: { inputTokens: 1, outputTokens: 1 },
+      cost: null,
+    },
+  });
+
+  expect(body).not.toContain(key);
+  expect(body).toContain('(redacted)');
+});
+
+test('redacts the api key from the reason a review did not run', () => {
+  const key = config.apiKey ?? '';
+  const body = renderReviewBody({
+    ...reviewed,
+    outcome: { kind: 'not-reviewed', reason: `seat API rejected key ${key}` },
+  });
+
+  expect(body).not.toContain(key);
+});
+
+test('never puts the api key in an ordinary comment either', () => {
   expect(renderReviewBody(reviewed)).not.toContain(config.apiKey);
 });

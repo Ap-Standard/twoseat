@@ -8,21 +8,14 @@
  *
  *  - notify anyone, by writing a mention
  *  - reach another repository, by writing an issue reference
- *  - render markup, which would let a finding fetch an external image the
- *    moment a reviewer opened the pull request
+ *  - fetch anything, whether through an HTML tag or through markdown image
+ *    syntax, either of which would pull an external URL the moment a reviewer
+ *    opened the pull request
  *
  * The transform is lossy on purpose. A defanged mention still reads correctly
  * to a person; a live one is a side effect nobody asked for.
  */
-
-/**
- * Characters that are invisible or that reorder what a reader sees: control
- * codes, zero-width marks, and the bidirectional overrides that can display
- * a line in reverse. Tab, newline, and carriage return are left for the
- * whitespace collapse below, so removing the rest cannot join two words.
- */
-const INVISIBLE =
-  /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060\ufeff]/g;
+import { stripInvisible } from '../redact.js';
 
 /** Three or more backticks would open a fence and swallow the rest of the comment. */
 const FENCE = /`{3,}/g;
@@ -42,13 +35,12 @@ const CROSS_REFERENCE = /#(?=\d)/g;
  * dots so a reviewer can still recognize the file.
  */
 export function neutralizePathForComment(path: string): string {
-  return path.replace(INVISIBLE, '').replace(/[`\r\n]/g, '').trim();
+  return stripInvisible(path).replace(/[`\r\n]/g, '').trim();
 }
 
 export function neutralizeForComment(text: string): string {
   return (
-    text
-      .replace(INVISIBLE, '')
+    stripInvisible(text)
       // Newlines let a finding add its own headings, tables, and list items to
       // a comment whose structure the action is supposed to own.
       .replace(/\s+/g, ' ')
@@ -62,10 +54,17 @@ export function neutralizeForComment(text: string): string {
       // cannot plant a decoy for a later run to latch onto.
       .replace(/</g, '&lt;')
       .replace(FENCE, '`')
-      // Cross-references before mentions. The entity a mention becomes contains
-      // a hash against a digit, so running these the other way round would
-      // rewrite the escape this step just introduced.
+      // Ordering invariant: a step that introduces a numeric entity has to run
+      // after CROSS_REFERENCE, because every such entity contains a hash
+      // against a digit and would otherwise be rewritten by it. `replace` makes
+      // a single pass, so a step never rewrites its own output, only an earlier
+      // step's. Both `&#64;` and `&#91;` are subject to this.
       .replace(CROSS_REFERENCE, '&#35;')
       .replace(MENTION, '&#64;')
+      // Escaping the opening square bracket disables markdown links and, more
+      // importantly, markdown images. An image needs no angle bracket to make
+      // a reviewer's browser fetch an attacker's URL on page load, so escaping
+      // HTML alone leaves the beacon open.
+      .replace(/\[/g, '&#91;')
   );
 }

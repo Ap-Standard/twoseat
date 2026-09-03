@@ -93,11 +93,29 @@ export function charBudgetForTokens(tokenCeiling: number): number {
 }
 
 /**
- * Characters to tokens, rounded up. Used to price a request before it is sent,
- * where an undercount would let a run exceed the ceiling it was given.
+ * Characters to tokens, rounded up, at the ratio used for packing.
  */
 export function estimateTokensFromChars(chars: number): number {
   return Math.ceil(Math.max(0, chars) / CHARS_PER_TOKEN);
+}
+
+/**
+ * Conservative characters per token, for bounding a request before it is sent.
+ *
+ * CHARS_PER_TOKEN is a typical ratio, which is the right thing for packing a
+ * budget and the wrong thing for a spend ceiling: dense or non-Latin text
+ * tokenizes closer to two characters per token, so a typical ratio would price
+ * such a diff at half its real cost and let it through a ceiling it exceeds.
+ *
+ * This remains an approximation. Without a per-model tokenizer the action
+ * cannot prove an upper bound, so the ceiling is enforced against a
+ * conservative estimate rather than a certainty. That limit is documented
+ * rather than papered over.
+ */
+export const WORST_CASE_CHARS_PER_TOKEN = 2;
+
+export function worstCaseTokensFromChars(chars: number): number {
+  return Math.ceil(Math.max(0, chars) / WORST_CASE_CHARS_PER_TOKEN);
 }
 
 /**

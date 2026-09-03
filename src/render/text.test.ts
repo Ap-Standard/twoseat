@@ -41,6 +41,38 @@ test('escapes an ampersand before anything else, so an entity cannot be smuggled
   expect(neutralizeForComment('a &lt; b')).toContain('&amp;lt; b');
 });
 
+test('cannot render a markdown image, which fetches an external url on view', () => {
+  // Escaping HTML is not enough. Markdown image syntax reaches the same
+  // beacon without a single angle bracket.
+  const out = neutralizeForComment('![pixel](https://attacker.invalid/p.gif)');
+
+  expect(out).not.toContain('![pixel]');
+  expect(out).toContain('&#91;pixel]');
+});
+
+test('cannot render a markdown link, so a finding cannot disguise a destination', () => {
+  const out = neutralizeForComment('[click here](https://attacker.invalid/phish)');
+
+  expect(out).not.toContain('[click here]');
+});
+
+test('cannot render a reference-style image either', () => {
+  expect(neutralizeForComment('![a][ref]')).not.toContain('![a][ref]');
+});
+
+test('no escape step rewrites the output of another', () => {
+  // The invariant behind the pipeline order, asserted directly. Every numeric
+  // entity this function introduces contains a hash against a digit, which is
+  // exactly what the cross-reference step matches. Two separate bugs came from
+  // getting that order wrong, so the property is tested rather than the cases.
+  const out = neutralizeForComment('@user #12 [link] <tag> & done');
+
+  for (const entity of ['&#64;', '&#35;', '&#91;', '&lt;', '&amp;']) {
+    expect(out).toContain(entity);
+  }
+  expect(out).not.toMatch(/&(?:amp|#\d+);?(?:amp|#)/);
+});
+
 test('collapses newlines, so a finding cannot add its own structure to the comment', () => {
   const out = neutralizeForComment('first\n\n### injected heading\n| a | b |');
 

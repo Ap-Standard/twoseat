@@ -74,6 +74,11 @@ export interface AssembleInput {
 
 export interface AssembledPrompt {
   promptVersion: string;
+  /**
+   * Characters this run will be billed for: the instructions, the data region,
+   * and the tool schema, which travels with every request and is not free.
+   */
+  billableChars: number;
   nonce: string;
   openMarker: string;
   closeMarker: string;
@@ -138,12 +143,15 @@ export function assembleReviewPrompt({ plan, nonce }: AssembleInput): AssembledP
 
   body.push(closeMarker);
 
+  const data = body.join('\n');
+
   return {
     promptVersion: PROMPT_VERSION,
     nonce,
     openMarker,
     closeMarker,
     instructions: INSTRUCTIONS,
-    data: body.join('\n'),
+    data,
+    billableChars: INSTRUCTIONS.length + data.length + JSON.stringify(FINDINGS_TOOL).length,
   };
 }

@@ -161,6 +161,24 @@ test('keeps a rejected finding out of the findings and counts it instead', async
   ]);
 });
 
+test('treats a payload that is not a findings list as a review that did not run', async () => {
+  // The worst rendering available: zero findings plus one rejection reads as a
+  // clean review with a footnote. A reply the action could not parse has to
+  // report that nothing reviewed the diff.
+  for (const toolInput of [{}, { findings: 'approved' }, 'ship it', null]) {
+    const { seat } = seatReturning({
+      kind: 'ok',
+      toolInput,
+      usage: { inputTokens: 10, outputTokens: 10 },
+    });
+
+    const outcome = await runReview(config, plan, prompt, seat);
+
+    expect(outcome.kind).toBe('not-reviewed');
+    expect(outcome.kind === 'not-reviewed' && outcome.reason).toMatch(/could not be read|not a/i);
+  }
+});
+
 test('treats a reply the seat could not shape as a review that did not run', async () => {
   // The seat layer reports an unparseable reply as a failure. This asserts the
   // composition keeps it that way rather than turning it into a clean review.

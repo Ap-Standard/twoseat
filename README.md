@@ -52,8 +52,14 @@ Live in this release:
   than a table in this repository, because a committed rate goes stale without
   failing anything. The comment reports the rate beside the cost, and says so
   plainly when no rate was supplied.
-- **The spend ceiling is checked before the call**, against the most a run could
-  cost rather than a likely response length.
+- **The spend ceiling is checked before the call**, against the whole output
+  allowance rather than a likely response length, and priced at a pessimistic
+  characters-per-token ratio. Without a per-model tokenizer that bound is a
+  conservative estimate and not a proof, which
+  [docs/findings.md](docs/findings.md) states rather than glosses.
+- **A committed credential does not get republished.** Quoting a leaked key is
+  the correct finding to report, so the key is stripped from every string bound
+  for a comment. Masking the run log alone would not cover the comment.
 
 Planned, not yet built:
 
