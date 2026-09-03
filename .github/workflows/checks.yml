@@ -21,6 +21,11 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      # A source file git reads as binary gets no patch from the pull request
+      # files API, so this gate can never review it. Keep it its own step: the
+      # failure it prevents is invisible to every other check here.
+      - name: source files are reviewable
+        run: npm run check:text
       - name: markdownlint
         run: npx --yes markdownlint-cli2 "**/*.md" "!node_modules/**"
       - name: dist matches source

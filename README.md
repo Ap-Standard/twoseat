@@ -6,9 +6,11 @@ product and the bot is the vehicle.
 ## Status
 
 **v0.1 in progress.** This release ingests a pull request diff, applies a
-documented truncation strategy, and maintains one summary comment. It does not
-call a model yet. No scorecard is published yet, and none will be until the
-harness in `bench/` can regenerate it from a labeled corpus.
+documented truncation strategy, reviews it with one seat, and maintains one
+summary comment carrying the findings, the tokens spent, and the prompt version
+behind them. A second seat is not built yet. No scorecard is published yet, and
+none will be until the harness in `bench/` can regenerate it from a labeled
+corpus.
 
 ## Why this exists
 
@@ -39,6 +41,25 @@ Live in this release:
   its way out into the instruction region. Reviewer instructions are
   byte-identical no matter what a diff contains, and the prompt is versioned.
   See [docs/prompt-isolation.md](docs/prompt-isolation.md).
+- **A seat's reply is untrusted too.** A finding is published only when its
+  anchor lands inside a hunk the run actually sent, so a seat cannot report on a
+  file it never saw or a line the diff never touched. Rejections are counted by
+  reason in the comment rather than dropped quietly. Seat prose is escaped
+  before it renders, so a finding cannot notify anyone, cross-link another
+  repository, or fetch an external image when a reviewer opens the pull
+  request. See [docs/findings.md](docs/findings.md).
+- **Every figure names its method.** Token prices are workflow inputs rather
+  than a table in this repository, because a committed rate goes stale without
+  failing anything. The comment reports the rate beside the cost, and says so
+  plainly when no rate was supplied.
+- **The spend ceiling is checked before the call**, against the whole output
+  allowance rather than a likely response length, and priced at a pessimistic
+  characters-per-token ratio. Without a per-model tokenizer that bound is a
+  conservative estimate and not a proof, which
+  [docs/findings.md](docs/findings.md) states rather than glosses.
+- **A committed credential does not get republished.** Quoting a leaked key is
+  the correct finding to report, so the key is stripped from every string bound
+  for a comment. Masking the run log alone would not cover the comment.
 
 Planned, not yet built:
 

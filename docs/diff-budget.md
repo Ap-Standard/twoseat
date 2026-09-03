@@ -5,20 +5,30 @@ before the diff reaches a seat. How they get cut has to be deterministic: the
 same pull request must always produce the same plan, or the benchmark numbers
 this project plans to publish cannot be reproduced.
 
-No model call runs yet. The budget described here is live, and it already decides
-what a review would be given.
+The budget described here is live and decides what a seat is given to review.
 
 ## The budget
 
 `token-ceiling` (default 120000) sets the prompt tokens one review may consume.
 The diff receives 70 percent of that. The remainder is headroom for reviewer
 instructions and the model's own response. Characters are the working unit,
-converted at 4 characters per token, so the default diff budget is 336000
+converted at 2 characters per token, so the default diff budget is 168000
 characters.
 
 Characters rather than tokens, because counting real tokens needs a per-model
-tokenizer. The ratio needs to keep a request inside the model's
-window, nothing more. It is not a billing estimate.
+tokenizer this action does not carry. The ratio has one job: keep a request
+inside the ceiling it was given.
+
+**The ratio errs low on purpose, and the first live run is why.** A run over
+this repository billed 118571 diff characters as 51459 input tokens, a ratio of
+2.30 on ordinary TypeScript and Markdown. The original value of 4 came from a
+rule of thumb for English prose. At the observed ratio it put a full character
+budget at roughly 146000 tokens against a 120000 ceiling, so the bound was 22
+percent past the limit it existed to enforce. Assuming fewer characters per
+token costs review capacity; assuming more costs the bound entirely.
+
+This is still an approximation rather than a proof, and the same ratio prices a
+run before it is sent. See [findings.md](findings.md) for the spend ceiling.
 
 ## The strategy
 

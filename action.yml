@@ -13,6 +13,14 @@ inputs:
     description: Token used to read the pull request diff and maintain the summary comment.
     required: false
     default: ${{ github.token }}
+  api-key:
+    description: >-
+      Anthropic API key for the primary seat. Leave empty to run without a
+      seat: the gate then reports that it did not review rather than failing,
+      which is what a pull request from a fork gets since forks receive no
+      repository secrets.
+    required: false
+    default: ''
   primary-model:
     description: Model id for the primary review seat.
     required: true
@@ -29,9 +37,32 @@ inputs:
     required: false
     default: '120000'
   cost-ceiling-usd:
-    description: Maximum estimated spend for one pull request review, in US dollars.
+    description: >-
+      Maximum estimated spend for one pull request review, in US dollars.
+      Enforced before the seat is called, against a conservative estimate of
+      the most the run could cost. It has no effect unless both token prices
+      below are supplied, because without a rate there is no spend to compare
+      against it, and the run then warns that it is spending uncapped.
+      The default clears a full-budget diff at the default token ceiling:
+      168000 diff characters plus instructions and tool schema, priced at two
+      characters per token, is about 86000 input tokens, and the reply
+      allowance is 12000 output tokens. At three and fifteen dollars per
+      million that is roughly 0.44, so a lower ceiling starts skipping large
+      diffs. Lower it deliberately, not by accident.
     required: false
     default: '0.50'
+  input-price-per-mtok:
+    description: >-
+      Price per million input tokens, in US dollars. Supplied by the calling
+      workflow rather than held in this action, so no published rate here can
+      go stale and put an unmethodical number in a comment. Must be set
+      together with the output price. Leave both empty for no cost estimate.
+    required: false
+    default: ''
+  output-price-per-mtok:
+    description: Price per million output tokens, in US dollars.
+    required: false
+    default: ''
   blocking-disabled:
     description: >-
       Kill switch. The calling workflow passes a repository variable here, named
@@ -39,6 +70,24 @@ inputs:
       blocking, and so does any value the action cannot interpret.
     required: false
     default: ''
+
+outputs:
+  reviewed:
+    description: >-
+      True when a seat reviewed the diff. False when the run reported why it
+      could not, which is never a failed check.
+  findings:
+    description: Number of findings that passed validation and reached the comment.
+  findings-p1:
+    description: How many of those findings are P1.
+  files-reviewed:
+    description: Files sent to a seat after the diff budget was applied.
+  files-dropped:
+    description: Files withheld from the review, for any documented reason.
+  prompt-version:
+    description: Prompt contract version behind this run. Scores compare only within one.
+  estimated-cost-usd:
+    description: Estimated spend for the run. Empty when no token prices were supplied.
 
 runs:
   using: node20

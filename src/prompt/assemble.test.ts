@@ -3,7 +3,12 @@ import { createHash } from 'node:crypto';
 import { expect, test } from 'vitest';
 
 import type { BudgetPlan } from '../ingest/budget.js';
-import { assembleReviewPrompt, createRunNonce, PROMPT_VERSION } from './assemble.js';
+import {
+  assembleReviewPrompt,
+  createRunNonce,
+  promptContractFingerprint,
+  PROMPT_VERSION,
+} from './assemble.js';
 
 const NONCE = 'deadbeefcafe0001';
 
@@ -121,12 +126,20 @@ test('mints a fresh nonce for every run', () => {
   expect(minted.size).toBe(100);
 });
 
-test('instruction text is pinned to the prompt version', () => {
-  const { instructions } = assembleReviewPrompt({ plan: cleanPlan, nonce: NONCE });
-  const fingerprint = createHash('sha256').update(instructions).digest('hex').slice(0, 16);
-
+test('the prompt contract is pinned to the prompt version', () => {
   // Change detector, deliberately. If this fails you edited the reviewer
-  // instructions: bump PROMPT_VERSION and update this fingerprint in the same
-  // commit, because scores are only comparable within one prompt version.
-  expect(fingerprint).toBe('998d10f5a3b7e637');
+  // instructions or the findings tool schema: bump PROMPT_VERSION and update
+  // this fingerprint in the same commit, because scores are only comparable
+  // within one prompt version.
+  expect(promptContractFingerprint()).toBe('953c83c274b1ffe1');
+});
+
+test('the fingerprint covers the tool schema, not the instructions alone', () => {
+  // The schema decides which fields a seat may report, so it changes what a
+  // review is. A fingerprint over instructions alone would let the reply
+  // contract change silently across a version boundary.
+  const { instructions } = assembleReviewPrompt({ plan: cleanPlan, nonce: NONCE });
+  const instructionsOnly = createHash('sha256').update(instructions).digest('hex').slice(0, 16);
+
+  expect(promptContractFingerprint()).not.toBe(instructionsOnly);
 });

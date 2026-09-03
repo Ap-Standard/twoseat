@@ -2,9 +2,13 @@
  * Action entry point.
  *
  * One rule governs this file: the step always succeeds. A crash, a bad input,
- * or an API failure produces an annotation, never a failed check. Blocking a
- * merge is reserved for the policy engine acting on real findings, so a
- * malfunction of the gate can never stop a pull request.
+ * an API failure, or a real finding produces an annotation, never a failed
+ * check. Blocking a merge is reserved for the policy engine, so a malfunction
+ * of the gate can never stop a pull request.
+ *
+ * A run that could not review says so in its comment. Reporting a failed seat
+ * as a clean review is the one outcome this file must never produce, because it
+ * tells a reviewer the diff was checked when nothing checked it.
  */
 import * as core from '@actions/core';
 import * as github from '@actions/github';
@@ -14,7 +18,8 @@ import { charBudgetForTokens, planDiffBudget } from './ingest/budget.js';
 import { toDiffFiles } from './ingest/files.js';
 import { assembleReviewPrompt, createRunNonce } from './prompt/assemble.js';
 import { findReviewComment } from './render/comment.js';
-import { renderSkeletonBody } from './render/skeleton.js';
+import { renderReviewBody, type ReviewOutcome } from './render/review.js';
+import { runReview } from './run-review.js';
 
 type Octokit = ReturnType<typeof github.getOctokit>;
 
@@ -60,6 +65,30 @@ async function upsertSummaryComment(
   });
 }
 
+/**
+ * Puts findings on the lines they belong to.
+ *
+ * Annotations do not fail a step, so this surfaces a finding in the Files
+ * Changed view without blocking anything.
+ */
+function annotate(outcome: ReviewOutcome): void {
+  if (outcome.kind !== 'reviewed') {
+    core.warning(`twoseat did not review this diff: ${outcome.reason}`);
+    return;
+  }
+
+  for (const finding of outcome.findings) {
+    const properties = { file: finding.path, startLine: finding.line };
+    const message = `${finding.severity} ${finding.title}: ${finding.detail}`;
+
+    if (finding.severity === 'P1') {
+      core.error(message, properties);
+    } else {
+      core.warning(message, properties);
+    }
+  }
+}
+
 async function run(): Promise<void> {
   // pull_request_target is deliberately unsupported: it runs with repository
   // secrets against a fork's diff, and the diff is untrusted input.
@@ -73,8 +102,25 @@ async function run(): Promise<void> {
 
   const config = parseConfig((name) => core.getInput(name));
 
+  if (config.apiKey !== null) {
+    // Registered before the key can reach any log line, so an accidental echo
+    // is masked. Actions logs on a public repository are public.
+    core.setSecret(config.apiKey);
+  }
+
   if (config.blockingDisabled && config.blockingDisabledReason !== null) {
     core.warning(`Blocking is disabled for this run: ${config.blockingDisabledReason}`);
+  }
+
+  if (config.apiKey !== null && config.tokenPrices === null) {
+    // The dollar ceiling looks like a live limit because it has a default, and
+    // it cannot run without rates. Say so in the log as well as the comment,
+    // since whoever is paying reads one and not always the other.
+    core.warning(
+      'This run spends money with no dollar ceiling: cost-ceiling-usd cannot be ' +
+        'enforced without input-price-per-mtok and output-price-per-mtok. The ' +
+        'token ceiling still applies.',
+    );
   }
 
   const octokit = github.getOctokit(core.getInput('github-token', { required: true }));
@@ -92,25 +138,32 @@ async function run(): Promise<void> {
   });
 
   core.info(
-    `Queued ${plan.included.length} file(s) using ${plan.charsUsed} of ${plan.charBudget} budgeted characters. Dropped ${plan.dropped.length}.`,
+    `Queued ${String(plan.included.length)} file(s) using ${String(plan.charsUsed)} of ${String(plan.charBudget)} budgeted characters. Dropped ${String(plan.dropped.length)}.`,
   );
 
-  // Assembled but not yet sent anywhere. No seat calls a model in this release.
   const prompt = assembleReviewPrompt({ plan, nonce: createRunNonce() });
+  const outcome = await runReview(config, plan, prompt);
 
-  core.info(
-    `Prompt version ${prompt.promptVersion}, ${prompt.data.length} characters inside the data region.`,
-  );
+  annotate(outcome);
 
   await upsertSummaryComment(
     octokit,
     { owner, repo, number },
-    renderSkeletonBody({ config, plan, promptVersion: prompt.promptVersion }),
+    renderReviewBody({ config, plan, promptVersion: prompt.promptVersion, outcome }),
   );
+
+  const findings = outcome.kind === 'reviewed' ? outcome.findings : [];
 
   core.setOutput('files-reviewed', plan.included.length);
   core.setOutput('files-dropped', plan.dropped.length);
   core.setOutput('prompt-version', prompt.promptVersion);
+  core.setOutput('reviewed', outcome.kind === 'reviewed');
+  core.setOutput('findings', findings.length);
+  core.setOutput('findings-p1', findings.filter((finding) => finding.severity === 'P1').length);
+  core.setOutput(
+    'estimated-cost-usd',
+    outcome.kind === 'reviewed' && outcome.cost !== null ? outcome.cost.usd.toFixed(4) : '',
+  );
 }
 
 run().catch((error: unknown) => {

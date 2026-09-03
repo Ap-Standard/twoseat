@@ -5,6 +5,8 @@
  * workflow fails with a readable message instead of a partial review.
  */
 
+import type { TokenPrices } from './cost.js';
+
 export class ConfigError extends Error {
   constructor(message: string) {
     super(message);
@@ -16,8 +18,15 @@ export interface Config {
   primaryModel: string;
   /** Null when no second seat is configured, which is a valid single-seat run. */
   secondSeatModel: string | null;
+  /**
+   * Null when the run has no key. A pull request from a fork gets no repository
+   * secrets, so this is an expected state and not a configuration error.
+   */
+  apiKey: string | null;
   tokenCeiling: number;
   costCeilingUsd: number;
+  /** Null when the workflow supplied no rates, which means no cost estimate. */
+  tokenPrices: TokenPrices | null;
   blockingDisabled: boolean;
   /** Why blocking is off, for the run log and the PR comment. Null when on. */
   blockingDisabledReason: string | null;
@@ -89,14 +98,52 @@ function resolveKillSwitch(raw: string): KillSwitch {
   };
 }
 
+function requireRate(name: string, raw: string): number {
+  const value = Number(raw.trim());
+  if (!Number.isFinite(value) || value < 0) {
+    throw new ConfigError(`Input "${name}" must be zero or a positive number, got "${raw}".`);
+  }
+  return value;
+}
+
+/**
+ * Resolves token prices.
+ *
+ * Both rates or neither. Half a pair would produce a cost figure that is wrong
+ * rather than absent, and a wrong number is worse than a missing one in a
+ * comment and in a benchmark.
+ */
+function resolveTokenPrices(read: InputReader): TokenPrices | null {
+  const rawInput = read('input-price-per-mtok').trim();
+  const rawOutput = read('output-price-per-mtok').trim();
+
+  if (rawInput === '' && rawOutput === '') {
+    return null;
+  }
+  if (rawInput === '' || rawOutput === '') {
+    throw new ConfigError(
+      'Inputs "input-price-per-mtok" and "output-price-per-mtok" must be set together. ' +
+        'One rate alone would price a run incorrectly.',
+    );
+  }
+
+  return {
+    inputPerMTok: requireRate('input-price-per-mtok', rawInput),
+    outputPerMTok: requireRate('output-price-per-mtok', rawOutput),
+  };
+}
+
 export function parseConfig(read: InputReader): Config {
   const secondSeatModel = read('second-seat-model').trim();
+  const apiKey = read('api-key').trim();
 
   return {
     primaryModel: requireNonEmpty('primary-model', read('primary-model')),
     secondSeatModel: secondSeatModel === '' ? null : secondSeatModel,
+    apiKey: apiKey === '' ? null : apiKey,
     tokenCeiling: requirePositiveInteger('token-ceiling', read('token-ceiling')),
     costCeilingUsd: requirePositiveNumber('cost-ceiling-usd', read('cost-ceiling-usd')),
+    tokenPrices: resolveTokenPrices(read),
     ...resolveKillSwitch(read('blocking-disabled')),
   };
 }

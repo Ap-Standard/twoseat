@@ -56,6 +56,17 @@ Until it is, this repository claims isolation and not immunity.
 ## Prompt versioning
 
 `PROMPT_VERSION` travels with every run and appears in the summary comment and
-the action's outputs. A fingerprint test over the instruction text fails if the
-instructions change without a version bump, because a score is only comparable
-to another score taken under the same prompt.
+the action's outputs. A score is only comparable to another score taken under
+the same prompt, so a fingerprint test pins the version to the contract and
+fails if the contract changes without a bump.
+
+The contract is two things, not one: the instruction text, and the schema of the
+tool a seat must call to reply. The schema decides which fields a finding may
+carry, so it changes what a review is. A fingerprint over the instructions alone
+would let the reply contract change silently across a version boundary, so the
+digest covers both, length-prefixed so moving text across the boundary between
+them cannot leave it unchanged.
+
+The reply itself gets no more trust than the diff did. See
+[findings.md](findings.md) for what the action validates before a seat's claim
+reaches a comment.
