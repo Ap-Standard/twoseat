@@ -2,8 +2,9 @@ import { expect, test } from 'vitest';
 
 import type { Config } from '../config.js';
 import type { BudgetPlan } from '../ingest/budget.js';
+import { PROMPT_VERSION } from '../prompt/assemble.js';
 import { COMMENT_MARKER } from './comment.js';
-import { renderSkeletonBody } from './skeleton.js';
+import { renderSkeletonBody, type SkeletonCommentInput } from './skeleton.js';
 
 const config: Config = {
   primaryModel: 'claude-sonnet-5',
@@ -21,30 +22,36 @@ const plan: BudgetPlan = {
   charsUsed: 3,
 };
 
+const base: SkeletonCommentInput = { config, plan, promptVersion: PROMPT_VERSION };
+
 test('embeds the marker so re-runs update one comment instead of appending', () => {
-  expect(renderSkeletonBody({ config, plan })).toContain(COMMENT_MARKER);
+  expect(renderSkeletonBody(base)).toContain(COMMENT_MARKER);
 });
 
 test('lists what the run dropped, with the reason', () => {
-  const body = renderSkeletonBody({ config, plan });
+  const body = renderSkeletonBody(base);
 
   expect(body).toContain('package-lock.json');
   expect(body).toContain('generated');
 });
 
 test('states that no model review has run yet, so the comment is not mistaken for one', () => {
-  expect(renderSkeletonBody({ config, plan })).toMatch(/no model review/i);
+  expect(renderSkeletonBody(base)).toMatch(/no model review/i);
 });
 
 test('reports why blocking is off when the kill switch is set', () => {
   const body = renderSkeletonBody({
+    ...base,
     config: { ...config, blockingDisabled: true, blockingDisabledReason: 'the kill switch is set' },
-    plan,
   });
 
   expect(body).toMatch(/kill switch is set/);
 });
 
 test('names the second seat as not configured for a single-seat run', () => {
-  expect(renderSkeletonBody({ config, plan })).toMatch(/not configured/i);
+  expect(renderSkeletonBody(base)).toMatch(/not configured/i);
+});
+
+test('reports the prompt version, so a comment can be traced to a prompt', () => {
+  expect(renderSkeletonBody({ ...base, promptVersion: '7' })).toContain('7');
 });

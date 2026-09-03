@@ -12,6 +12,8 @@ import { COMMENT_MARKER } from './comment.js';
 export interface SkeletonCommentInput {
   config: Config;
   plan: BudgetPlan;
+  /** Recorded so a comment can be traced back to the prompt that produced it. */
+  promptVersion: string;
 }
 
 const DROP_REASONS: Record<DropReason, string> = {
@@ -27,13 +29,18 @@ function blockingCell(config: Config): string {
   return `disabled (${config.blockingDisabledReason ?? 'no reason recorded'})`;
 }
 
-export function renderSkeletonBody({ config, plan }: SkeletonCommentInput): string {
+export function renderSkeletonBody({
+  config,
+  plan,
+  promptVersion,
+}: SkeletonCommentInput): string {
   const lines: string[] = [
     COMMENT_MARKER,
     '### twoseat',
     '',
     'No model review has run. This release ingests the pull request diff and',
-    'reports what a review would have been given. Findings arrive in a later release.',
+    'assembles the reviewer prompt, then reports what a review would be given.',
+    'Findings arrive in a later release.',
     '',
     '| Field | Value |',
     '| --- | --- |',
@@ -42,6 +49,7 @@ export function renderSkeletonBody({ config, plan }: SkeletonCommentInput): stri
     `| Primary seat | \`${config.primaryModel}\` |`,
     `| Second seat | ${config.secondSeatModel === null ? 'not configured' : `\`${config.secondSeatModel}\``} |`,
     `| Blocking | ${blockingCell(config)} |`,
+    `| Prompt version | ${promptVersion} |`,
   ];
 
   if (plan.dropped.length > 0) {
