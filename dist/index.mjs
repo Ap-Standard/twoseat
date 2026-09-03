@@ -24185,7 +24185,81 @@ function getOctokit(token, options, ...additionalPlugins) {
   return new GitHubWithPlugins(getOctokitOptions(token, options));
 }
 
+// src/findings/model.ts
+var SEVERITIES = ["P1", "P2"];
+var CONFIDENCES = ["high", "medium", "low"];
+var CATEGORIES = [
+  "sql-injection",
+  "missing-await",
+  "toctou",
+  "secret-in-diff",
+  "n-plus-one",
+  "unsafe-migration",
+  "authz-bypass",
+  "error-swallowing",
+  "resource-leak",
+  "input-validation",
+  "unsafe-deserialization",
+  "other"
+];
+var FALLBACK_CATEGORY = "other";
+var FINDINGS_TOOL_NAME = "report_findings";
+var FINDINGS_TOOL = {
+  name: FINDINGS_TOOL_NAME,
+  description: "Report every defect you found in the diff under review. Report an empty list when the diff contains no defect you can anchor to a line it changes.",
+  input_schema: {
+    type: "object",
+    properties: {
+      findings: {
+        type: "array",
+        description: "One entry per defect. Empty when there is nothing to report.",
+        items: {
+          type: "object",
+          properties: {
+            path: {
+              type: "string",
+              description: "Path of the file, copied exactly as it appears in the diff under review."
+            },
+            line: {
+              type: "integer",
+              description: "Line number in the file as the diff leaves it. Must fall inside a hunk of that file."
+            },
+            severity: {
+              type: "string",
+              enum: ["P1", "P2"],
+              description: "P1 for a defect that should stop a merge. P2 for one worth raising but not stopping."
+            },
+            confidence: {
+              type: "string",
+              enum: ["high", "medium", "low"],
+              description: "How sure you are that this defect is real."
+            },
+            category: {
+              type: "string",
+              enum: [...CATEGORIES],
+              description: "The kind of defect. Use other when none of the listed classes fits, rather than forcing a poor match."
+            },
+            title: {
+              type: "string",
+              description: "One line naming the defect."
+            },
+            detail: {
+              type: "string",
+              description: "What breaks, and the input or state under which it breaks."
+            }
+          },
+          required: ["path", "line", "severity", "confidence", "category", "title", "detail"],
+          additionalProperties: false
+        }
+      }
+    },
+    required: ["findings"],
+    additionalProperties: false
+  }
+};
+
 // src/config.ts
+var DEFAULT_BLOCKING_CONFIDENCE = "medium";
 var ConfigError = class extends Error {
   constructor(message) {
     super(message);
@@ -24234,6 +24308,22 @@ function resolveKillSwitch(raw) {
     blockingDisabledReason: `unrecognized kill-switch value ${JSON.stringify(raw)}; blocking is disabled because the gate does not guess at its own configuration`
   };
 }
+function resolveBlockingPolicy(read) {
+  const killSwitch = resolveKillSwitch(read("blocking-disabled"));
+  const raw = read("blocking-confidence");
+  const value = raw.trim().toLowerCase();
+  if (value === "") {
+    return { ...killSwitch, blockingConfidence: DEFAULT_BLOCKING_CONFIDENCE };
+  }
+  if (CONFIDENCES.includes(value)) {
+    return { ...killSwitch, blockingConfidence: value };
+  }
+  return {
+    blockingDisabled: true,
+    blockingDisabledReason: killSwitch.blockingDisabledReason ?? `unrecognized blocking-confidence value ${JSON.stringify(raw)}; blocking is disabled because the gate does not guess at its own configuration`,
+    blockingConfidence: DEFAULT_BLOCKING_CONFIDENCE
+  };
+}
 function requireRate(name, raw) {
   const value = Number(raw.trim());
   if (!Number.isFinite(value) || value < 0) {
@@ -24267,7 +24357,7 @@ function parseConfig(read) {
     tokenCeiling: requirePositiveInteger("token-ceiling", read("token-ceiling")),
     costCeilingUsd: requirePositiveNumber("cost-ceiling-usd", read("cost-ceiling-usd")),
     tokenPrices: resolveTokenPrices(read),
-    ...resolveKillSwitch(read("blocking-disabled"))
+    ...resolveBlockingPolicy(read)
   };
 }
 
@@ -24349,83 +24439,52 @@ function toDiffFiles(apiFiles) {
   });
 }
 
+// src/policy.ts
+var UNREVIEWED_LABEL = "twoseat:unreviewed";
+function wantsUnreviewedLabel(decision) {
+  return decision === "not-reviewed";
+}
+function meetsThreshold(finding, threshold) {
+  return CONFIDENCES.indexOf(finding.confidence) <= CONFIDENCES.indexOf(threshold);
+}
+function decidePolicy(outcome, config) {
+  if (outcome.kind === "not-reviewed") {
+    return { decision: "not-reviewed", blockingFindings: 0 };
+  }
+  const blockingFindings = outcome.findings.filter(
+    (finding) => finding.severity === "P1" && meetsThreshold(finding, config.blockingConfidence)
+  ).length;
+  if (config.blockingDisabled) {
+    return { decision: "blocking-disabled", blockingFindings };
+  }
+  return { decision: blockingFindings > 0 ? "block" : "pass", blockingFindings };
+}
+
+// src/labels.ts
+function describeError(error2) {
+  return error2 instanceof Error ? error2.message : String(error2);
+}
+function isAlreadyAbsent(error2) {
+  return typeof error2 === "object" && error2 !== null && "status" in error2 && error2.status === 404;
+}
+async function syncUnreviewedLabel(client, wanted) {
+  try {
+    if (wanted) {
+      await client.add(UNREVIEWED_LABEL);
+      return null;
+    }
+    await client.remove(UNREVIEWED_LABEL);
+    return null;
+  } catch (error2) {
+    if (!wanted && isAlreadyAbsent(error2)) {
+      return null;
+    }
+    return `Could not update the ${UNREVIEWED_LABEL} label: ${describeError(error2)}. The summary comment still carries the outcome.`;
+  }
+}
+
 // src/prompt/assemble.ts
 import { createHash, randomBytes } from "node:crypto";
-
-// src/findings/model.ts
-var SEVERITIES = ["P1", "P2"];
-var CONFIDENCES = ["high", "medium", "low"];
-var CATEGORIES = [
-  "sql-injection",
-  "missing-await",
-  "toctou",
-  "secret-in-diff",
-  "n-plus-one",
-  "unsafe-migration",
-  "authz-bypass",
-  "error-swallowing",
-  "resource-leak",
-  "input-validation",
-  "unsafe-deserialization",
-  "other"
-];
-var FALLBACK_CATEGORY = "other";
-var FINDINGS_TOOL_NAME = "report_findings";
-var FINDINGS_TOOL = {
-  name: FINDINGS_TOOL_NAME,
-  description: "Report every defect you found in the diff under review. Report an empty list when the diff contains no defect you can anchor to a line it changes.",
-  input_schema: {
-    type: "object",
-    properties: {
-      findings: {
-        type: "array",
-        description: "One entry per defect. Empty when there is nothing to report.",
-        items: {
-          type: "object",
-          properties: {
-            path: {
-              type: "string",
-              description: "Path of the file, copied exactly as it appears in the diff under review."
-            },
-            line: {
-              type: "integer",
-              description: "Line number in the file as the diff leaves it. Must fall inside a hunk of that file."
-            },
-            severity: {
-              type: "string",
-              enum: ["P1", "P2"],
-              description: "P1 for a defect that should stop a merge. P2 for one worth raising but not stopping."
-            },
-            confidence: {
-              type: "string",
-              enum: ["high", "medium", "low"],
-              description: "How sure you are that this defect is real."
-            },
-            category: {
-              type: "string",
-              enum: [...CATEGORIES],
-              description: "The kind of defect. Use other when none of the listed classes fits, rather than forcing a poor match."
-            },
-            title: {
-              type: "string",
-              description: "One line naming the defect."
-            },
-            detail: {
-              type: "string",
-              description: "What breaks, and the input or state under which it breaks."
-            }
-          },
-          required: ["path", "line", "severity", "confidence", "category", "title", "detail"],
-          additionalProperties: false
-        }
-      }
-    },
-    required: ["findings"],
-    additionalProperties: false
-  }
-};
-
-// src/prompt/assemble.ts
 var PROMPT_VERSION = "3";
 var REDACTED = "[redacted-marker]";
 var WITHHELD_REASONS = {
@@ -24546,11 +24605,16 @@ var REJECT_REASONS = {
 function formatInt(value) {
   return String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
-function blockingCell(config) {
+function blockingCell(config, decision) {
   if (!config.blockingDisabled) {
     return "enabled";
   }
-  return `disabled (${config.blockingDisabledReason ?? "no reason recorded"})`;
+  const reason = `disabled (${config.blockingDisabledReason ?? "no reason recorded"})`;
+  if (decision.blockingFindings === 0) {
+    return reason;
+  }
+  const plural = decision.blockingFindings === 1 ? "finding" : "findings";
+  return `${reason}; ${formatInt(decision.blockingFindings)} ${plural} would otherwise have blocked`;
 }
 function countBySeverity(findings) {
   const counts = /* @__PURE__ */ new Map();
@@ -24649,7 +24713,7 @@ function discardedLines(outcome) {
   return lines;
 }
 function renderReviewBody(input) {
-  const { config, plan, promptVersion, outcome } = input;
+  const { config, plan, promptVersion, decision, outcome } = input;
   const scrub = scrubber(config);
   const lines = [
     COMMENT_MARKER,
@@ -24665,7 +24729,8 @@ function renderReviewBody(input) {
     `| Second seat | ${config.secondSeatModel === null ? "not configured" : `\`${neutralizePathForComment(config.secondSeatModel)}\``} |`,
     `| Prompt version | ${promptVersion} |`,
     ...costRows(input),
-    `| Blocking | ${blockingCell(config)} |`,
+    `| Blocking | ${blockingCell(config, decision)} |`,
+    `| Decision | ${decision.decision} |`,
     ...costNote(input),
     ...findingLines(outcome.kind === "reviewed" ? outcome.findings : [], scrub),
     ...withheldLines(plan),
@@ -24982,7 +25047,7 @@ async function runReview(config, plan, prompt, seat = callSeat) {
 }
 
 // src/main.ts
-function describeError(error2) {
+function describeError2(error2) {
   return error2 instanceof Error ? error2.message : String(error2);
 }
 async function upsertSummaryComment(octokit, pr, body) {
@@ -25008,6 +25073,26 @@ async function upsertSummaryComment(octokit, pr, body) {
     comment_id: existing.id,
     body
   });
+}
+function labelClient(octokit, pr) {
+  return {
+    add: async (name) => {
+      await octokit.rest.issues.addLabels({
+        owner: pr.owner,
+        repo: pr.repo,
+        issue_number: pr.number,
+        labels: [name]
+      });
+    },
+    remove: async (name) => {
+      await octokit.rest.issues.removeLabel({
+        owner: pr.owner,
+        repo: pr.repo,
+        issue_number: pr.number,
+        name
+      });
+    }
+  };
 }
 function annotate(outcome) {
   if (outcome.kind !== "reviewed") {
@@ -25061,11 +25146,19 @@ async function run() {
   const prompt = assembleReviewPrompt({ plan, nonce: createRunNonce() });
   const outcome = await runReview(config, plan, prompt);
   annotate(outcome);
+  const decision = decidePolicy(outcome, config);
   await upsertSummaryComment(
     octokit,
     { owner, repo, number },
-    renderReviewBody({ config, plan, promptVersion: prompt.promptVersion, outcome })
+    renderReviewBody({ config, plan, promptVersion: prompt.promptVersion, decision, outcome })
   );
+  const labelWarning = await syncUnreviewedLabel(
+    labelClient(octokit, { owner, repo, number }),
+    wantsUnreviewedLabel(decision.decision)
+  );
+  if (labelWarning !== null) {
+    warning(labelWarning);
+  }
   const findings = outcome.kind === "reviewed" ? outcome.findings : [];
   setOutput("files-reviewed", plan.included.length);
   setOutput("files-dropped", plan.dropped.length);
@@ -25073,13 +25166,15 @@ async function run() {
   setOutput("reviewed", outcome.kind === "reviewed");
   setOutput("findings", findings.length);
   setOutput("findings-p1", findings.filter((finding) => finding.severity === "P1").length);
+  setOutput("decision", decision.decision);
+  setOutput("blocking-findings", decision.blockingFindings);
   setOutput(
     "estimated-cost-usd",
     outcome.kind === "reviewed" && outcome.cost !== null ? outcome.cost.usd.toFixed(4) : ""
   );
 }
 run().catch((error2) => {
-  error(`twoseat did not complete: ${describeError(error2)}`);
+  error(`twoseat did not complete: ${describeError2(error2)}`);
 });
 /*! Bundled license information:
 

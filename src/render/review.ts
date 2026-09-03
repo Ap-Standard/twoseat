@@ -17,6 +17,7 @@ import type { Finding, Severity } from '../findings/model.js';
 import type { RejectReason, RejectedFinding } from '../findings/parse.js';
 import { SEVERITIES } from '../findings/model.js';
 import type { BudgetPlan, DropReason } from '../ingest/budget.js';
+import type { PolicyDecision } from '../policy.js';
 import { redactSecret } from '../redact.js';
 import { COMMENT_MARKER } from './comment.js';
 import { neutralizeForComment, neutralizePathForComment } from './text.js';
@@ -42,6 +43,8 @@ export interface ReviewCommentInput {
   config: Config;
   plan: BudgetPlan;
   promptVersion: string;
+  /** Computed once by the caller, so the comment and the outputs cannot differ. */
+  decision: PolicyDecision;
   outcome: ReviewOutcome;
 }
 
@@ -66,11 +69,20 @@ function formatInt(value: number): string {
   return String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
-function blockingCell(config: Config): string {
+function blockingCell(config: Config, decision: PolicyDecision): string {
   if (!config.blockingDisabled) {
     return 'enabled';
   }
-  return `disabled (${config.blockingDisabledReason ?? 'no reason recorded'})`;
+
+  const reason = `disabled (${config.blockingDisabledReason ?? 'no reason recorded'})`;
+  if (decision.blockingFindings === 0) {
+    return reason;
+  }
+
+  // What a disabled gate would have done is the fact an operator is switching
+  // the gate off to avoid, so it is the one worth putting in front of them.
+  const plural = decision.blockingFindings === 1 ? 'finding' : 'findings';
+  return `${reason}; ${formatInt(decision.blockingFindings)} ${plural} would otherwise have blocked`;
 }
 
 function countBySeverity(findings: readonly Finding[]): Map<Severity, number> {
@@ -206,7 +218,7 @@ function discardedLines(outcome: ReviewOutcome): string[] {
 }
 
 export function renderReviewBody(input: ReviewCommentInput): string {
-  const { config, plan, promptVersion, outcome } = input;
+  const { config, plan, promptVersion, decision, outcome } = input;
   const scrub = scrubber(config);
 
   const lines: string[] = [
@@ -227,7 +239,8 @@ export function renderReviewBody(input: ReviewCommentInput): string {
     } |`,
     `| Prompt version | ${promptVersion} |`,
     ...costRows(input),
-    `| Blocking | ${blockingCell(config)} |`,
+    `| Blocking | ${blockingCell(config, decision)} |`,
+    `| Decision | ${decision.decision} |`,
     ...costNote(input),
     ...findingLines(outcome.kind === 'reviewed' ? outcome.findings : [], scrub),
     ...withheldLines(plan),

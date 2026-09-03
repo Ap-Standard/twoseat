@@ -24,10 +24,24 @@ resistant it is to instructions hidden in a diff, and what one review costs.
 
 Live in this release:
 
-- **The gate never blocks on its own malfunction.** A crash, a bad input, or an
-  API failure produces an annotation and the check still passes. No code path in
-  this release can fail a check at all. When the policy engine lands, a decision
-  about a real finding will be the only thing that can.
+- **The gate never blocks, and that is structural rather than configured.** A
+  crash, a bad input, or an API failure produces an annotation and the check
+  still passes. No code path in this action can fail a check, a real finding
+  included. A blocking decision is published as an output and a label, and a
+  repository that wants one enforced fails its own job on that output. Deciding
+  and enforcing sit in different files on purpose, so the gate can be wrong
+  about a diff without being able to stop anyone. The four decisions it can
+  reach are kept distinct, because "nothing was found", "we chose not to
+  enforce", and "nothing looked" are different facts about a pull request. See
+  [docs/degrade-policy.md](docs/degrade-policy.md).
+- **The blocking threshold was derived, not picked.** A P1 at `medium`
+  confidence or better decides `block`. The false-block table below reads 0.0%
+  at all three thresholds, which is a real result and a weak discriminator: the
+  seat reported no P1 at all on any of the 15 cases eligible to be
+  false-blocked, so those three rows are one measurement printed three times.
+  The choice rests on the other side of the ledger instead, and
+  [docs/degrade-policy.md](docs/degrade-policy.md) shows the working, including
+  the two seeded defects no threshold reaches.
 - **Truncation is whole file or nothing.** A partial patch shifts line anchors,
   and a finding on the wrong line reads as an invented one. Files that do not
   fit are named in the comment rather than dropped silently. See
@@ -65,10 +79,11 @@ Planned, not yet built:
 
 - A second, independent seat, merged so that disagreement between seats stays
   visible instead of being averaged away.
-- A policy engine, so a team can choose what blocks a merge. The false-block
-  table below is the evidence for that choice; nothing acts on it yet.
 - A retry when a seat's reply comes back unreadable, which happens on roughly
   2-4% of calls and currently degrades to a comment saying nothing ran.
+- A runbook and a threat model. The kill switch and the degrade path are
+  documented in [docs/degrade-policy.md](docs/degrade-policy.md) until the
+  runbook exists.
 
 ## Scorecard
 

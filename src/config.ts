@@ -6,6 +6,17 @@
  */
 
 import type { TokenPrices } from './cost.js';
+import { CONFIDENCES, type Confidence } from './findings/model.js';
+
+/**
+ * The threshold a P1 finding must reach to produce a blocking decision.
+ *
+ * Calibrated against the corpus in bench/, and the reasoning is in
+ * docs/degrade-policy.md rather than here. `low` is dominated: no P1 finding in
+ * the run carried it. `high` exempts an entire defect class the seat was less
+ * confident about and right about every time.
+ */
+export const DEFAULT_BLOCKING_CONFIDENCE: Confidence = 'medium';
 
 export class ConfigError extends Error {
   constructor(message: string) {
@@ -30,6 +41,8 @@ export interface Config {
   blockingDisabled: boolean;
   /** Why blocking is off, for the run log and the PR comment. Null when on. */
   blockingDisabledReason: string | null;
+  /** Threshold a P1 must reach to block. Findings are counted against it either way. */
+  blockingConfidence: Confidence;
 }
 
 export type InputReader = (name: string) => string;
@@ -98,6 +111,40 @@ function resolveKillSwitch(raw: string): KillSwitch {
   };
 }
 
+/**
+ * Resolves the blocking policy: the kill switch and the confidence threshold.
+ *
+ * An unrecognized threshold disables blocking, for the same reason an
+ * unrecognized kill-switch value does. It still resolves to the default so the
+ * `blocking-findings` count stays meaningful, since the count is a measurement
+ * and only the decision is switched off.
+ *
+ * A kill switch that is already set keeps its own reason. It is the more direct
+ * explanation of why blocking is off, and it is the one an operator just set.
+ */
+function resolveBlockingPolicy(read: InputReader): KillSwitch & { blockingConfidence: Confidence } {
+  const killSwitch = resolveKillSwitch(read('blocking-disabled'));
+  const raw = read('blocking-confidence');
+  const value = raw.trim().toLowerCase();
+
+  if (value === '') {
+    return { ...killSwitch, blockingConfidence: DEFAULT_BLOCKING_CONFIDENCE };
+  }
+
+  if ((CONFIDENCES as readonly string[]).includes(value)) {
+    return { ...killSwitch, blockingConfidence: value as Confidence };
+  }
+
+  return {
+    blockingDisabled: true,
+    blockingDisabledReason:
+      killSwitch.blockingDisabledReason ??
+      `unrecognized blocking-confidence value ${JSON.stringify(raw)}; ` +
+        'blocking is disabled because the gate does not guess at its own configuration',
+    blockingConfidence: DEFAULT_BLOCKING_CONFIDENCE,
+  };
+}
+
 function requireRate(name: string, raw: string): number {
   const value = Number(raw.trim());
   if (!Number.isFinite(value) || value < 0) {
@@ -144,6 +191,6 @@ export function parseConfig(read: InputReader): Config {
     tokenCeiling: requirePositiveInteger('token-ceiling', read('token-ceiling')),
     costCeilingUsd: requirePositiveNumber('cost-ceiling-usd', read('cost-ceiling-usd')),
     tokenPrices: resolveTokenPrices(read),
-    ...resolveKillSwitch(read('blocking-disabled')),
+    ...resolveBlockingPolicy(read),
   };
 }

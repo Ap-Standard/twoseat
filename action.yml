@@ -70,6 +70,16 @@ inputs:
       blocking, and so does any value the action cannot interpret.
     required: false
     default: ''
+  blocking-confidence:
+    description: >-
+      Lowest confidence at which a P1 finding produces a block decision: high,
+      medium, or low. Defaults to medium, calibrated against the corpus in
+      bench/ with the reasoning in docs/degrade-policy.md. Changing it leaves
+      that calibration behind, which is why the number is an input here rather
+      than a constant in the action. A value the action cannot interpret
+      disables blocking, on the same rule as the kill switch above.
+    required: false
+    default: ''
 
 outputs:
   reviewed:
@@ -88,6 +98,19 @@ outputs:
     description: Prompt contract version behind this run. Scores compare only within one.
   estimated-cost-usd:
     description: Estimated spend for the run. Empty when no token prices were supplied.
+  decision:
+    description: >-
+      What the policy decided: block, pass, blocking-disabled, or not-reviewed.
+      The step exits 0 on every one of them. A workflow that wants a block to
+      stop a merge reads this output and fails its own job, the mechanism
+      documented in docs/degrade-policy.md. The four values stay distinct on
+      purpose, because "nothing was found", "we chose not to enforce", and
+      "nothing looked" are different facts about a pull request.
+  blocking-findings:
+    description: >-
+      P1 findings at or above the confidence threshold. Counted even when the
+      kill switch is on, since the count is a measurement and only the decision
+      is switched off.
 
 runs:
   using: node20

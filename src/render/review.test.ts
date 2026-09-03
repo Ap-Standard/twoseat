@@ -16,6 +16,7 @@ const config: Config = {
   tokenPrices: { inputPerMTok: 3, outputPerMTok: 15 },
   blockingDisabled: false,
   blockingDisabledReason: null,
+  blockingConfidence: 'medium',
 };
 
 const plan: BudgetPlan = {
@@ -41,6 +42,7 @@ const reviewed: ReviewCommentInput = {
   config,
   plan,
   promptVersion: PROMPT_VERSION,
+  decision: { decision: 'block', blockingFindings: 1 },
   outcome: {
     kind: 'reviewed',
     findings: [finding],
@@ -49,6 +51,36 @@ const reviewed: ReviewCommentInput = {
     cost: { usd: 0.047, basis: 'at $3.00 in and $15.00 out per million tokens' },
   },
 };
+
+test('names the decision, so the comment and the outputs cannot disagree', () => {
+  expect(renderReviewBody(reviewed)).toMatch(/\| Decision \| block \|/);
+});
+
+test('a run that did not review says so in the decision row, not just the headline', () => {
+  const body = renderReviewBody({
+    ...reviewed,
+    decision: { decision: 'not-reviewed', blockingFindings: 0 },
+    outcome: { kind: 'not-reviewed', reason: 'The seat did not answer.' },
+  });
+
+  expect(body).toMatch(/\| Decision \| not-reviewed \|/);
+  expect(body).not.toMatch(/No findings/);
+});
+
+test('a disabled gate reports what it would have blocked on', () => {
+  const body = renderReviewBody({
+    ...reviewed,
+    config: {
+      ...config,
+      blockingDisabled: true,
+      blockingDisabledReason: 'the kill switch is set',
+    },
+    decision: { decision: 'blocking-disabled', blockingFindings: 2 },
+  });
+
+  expect(body).toMatch(/\| Decision \| blocking-disabled \|/);
+  expect(body).toMatch(/2 finding/);
+});
 
 test('embeds the marker so re-runs update one comment instead of appending', () => {
   expect(renderReviewBody(reviewed)).toContain(COMMENT_MARKER);
