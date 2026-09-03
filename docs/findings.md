@@ -145,12 +145,14 @@ call is not a ceiling, and neither is one checked against an optimistic guess.
 
 **The bound is conservative, not proven.** Counting real tokens needs a
 per-model tokenizer, which this action does not carry, so the pre-flight prices
-characters instead. The diff budget packs at four characters per token, a
-typical ratio. The ceiling uses two, because dense or non-Latin text tokenizes
-closer to that and a typical ratio would price such a diff at half its real
-cost and wave it through. Both numbers are approximations. The ceiling is
-enforced against the pessimistic one, and this paragraph is the method behind
-the figure rather than a claim of certainty.
+characters at 2 per token. That figure errs low deliberately: a live run over
+this repository measured 2.30 on ordinary TypeScript and Markdown, and denser
+content goes lower. Erring the other way would price a dense diff at half its
+real cost and wave it through a ceiling it exceeds. The same ratio bounds the
+diff budget, and [diff-budget.md](diff-budget.md) carries the measurement.
+
+It remains an approximation and not a certainty, which is the method behind the
+figure rather than a hedge around it.
 
 The estimate also counts the tool schema, which travels with every request.
 

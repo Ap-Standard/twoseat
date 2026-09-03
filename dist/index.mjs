@@ -24288,14 +24288,13 @@ var GENERATED_PATH_PATTERNS = [
 function isGeneratedPath(path) {
   return GENERATED_PATH_PATTERNS.some((pattern) => pattern.test(path));
 }
-var CHARS_PER_TOKEN = 4;
+var CHARS_PER_TOKEN = 2;
 var DIFF_TOKEN_SHARE = 0.7;
 function charBudgetForTokens(tokenCeiling) {
   return Math.max(0, Math.floor(tokenCeiling * DIFF_TOKEN_SHARE * CHARS_PER_TOKEN));
 }
-var WORST_CASE_CHARS_PER_TOKEN = 2;
-function worstCaseTokensFromChars(chars) {
-  return Math.ceil(Math.max(0, chars) / WORST_CASE_CHARS_PER_TOKEN);
+function estimateTokensFromChars(chars) {
+  return Math.ceil(Math.max(0, chars) / CHARS_PER_TOKEN);
 }
 var OUTPUT_TOKEN_SHARE = 0.1;
 var MIN_OUTPUT_TOKENS = 1024;
@@ -24920,7 +24919,7 @@ async function runReview(config, plan, prompt, seat = callSeat) {
   }
   const maxOutputTokens = outputTokenBudget(config.tokenCeiling);
   if (config.tokenPrices !== null) {
-    const inputTokens = worstCaseTokensFromChars(prompt.billableChars);
+    const inputTokens = estimateTokensFromChars(prompt.billableChars);
     const worstCase = worstCaseCostUsd({ inputTokens, maxOutputTokens }, config.tokenPrices);
     if (worstCase > config.costCeilingUsd) {
       return {

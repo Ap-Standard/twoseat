@@ -43,14 +43,14 @@ inputs:
       the most the run could cost. It has no effect unless both token prices
       below are supplied, because without a rate there is no spend to compare
       against it, and the run then warns that it is spending uncapped.
-      The default is set to clear a full-budget diff at the default token
-      ceiling: 336000 diff characters plus instructions and tool schema, priced
-      at two characters per token, is about 170000 input tokens, and the reply
+      The default clears a full-budget diff at the default token ceiling:
+      168000 diff characters plus instructions and tool schema, priced at two
+      characters per token, is about 86000 input tokens, and the reply
       allowance is 12000 output tokens. At three and fifteen dollars per
-      million that is roughly 0.69, so a lower ceiling would skip large diffs.
-      Lower it deliberately, not by accident.
+      million that is roughly 0.44, so a lower ceiling starts skipping large
+      diffs. Lower it deliberately, not by accident.
     required: false
-    default: '1.00'
+    default: '0.50'
   input-price-per-mtok:
     description: >-
       Price per million input tokens, in US dollars. Supplied by the calling

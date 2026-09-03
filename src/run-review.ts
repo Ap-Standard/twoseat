@@ -12,7 +12,7 @@
 import type { Config } from './config.js';
 import { estimateCostUsd, worstCaseCostUsd } from './cost.js';
 import { isFindingsPayload, parseSeatFindings } from './findings/parse.js';
-import { outputTokenBudget, worstCaseTokensFromChars, type BudgetPlan } from './ingest/budget.js';
+import { estimateTokensFromChars, outputTokenBudget, type BudgetPlan } from './ingest/budget.js';
 import type { AssembledPrompt } from './prompt/assemble.js';
 import type { ReviewOutcome } from './render/review.js';
 import { callSeat, type SeatOutcome, type SeatRequest } from './seats/anthropic.js';
@@ -44,7 +44,7 @@ export async function runReview(
   const maxOutputTokens = outputTokenBudget(config.tokenCeiling);
 
   if (config.tokenPrices !== null) {
-    const inputTokens = worstCaseTokensFromChars(prompt.billableChars);
+    const inputTokens = estimateTokensFromChars(prompt.billableChars);
     const worstCase = worstCaseCostUsd({ inputTokens, maxOutputTokens }, config.tokenPrices);
 
     if (worstCase > config.costCeilingUsd) {

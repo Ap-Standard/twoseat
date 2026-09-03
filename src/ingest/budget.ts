@@ -76,11 +76,25 @@ export interface BudgetPlan {
 }
 
 /**
- * Approximate characters per token. The action budgets in characters because
- * counting real tokens would require a per-model tokenizer, and the ratio only
- * needs to be good enough to keep a request under the model's window.
+ * Characters per token, deliberately pessimistic.
+ *
+ * The action budgets in characters because counting real tokens needs a
+ * per-model tokenizer it does not carry. The ratio therefore has one job: keep
+ * a request inside the ceiling it was given. That makes the direction of the
+ * error the whole point. Assume too many characters per token and the character
+ * budget converts to more tokens than the ceiling allows, so the bound silently
+ * stops bounding anything.
+ *
+ * A live run over this repository billed 118571 diff characters as 51459 input
+ * tokens: 2.30 characters per token, on ordinary TypeScript and Markdown.
+ * Denser or non-Latin content goes lower still. The original value of 4 came
+ * from a rule of thumb for English prose and was wrong by nearly half, which
+ * put a full character budget 22 percent over the entire token ceiling.
+ *
+ * One ratio is used everywhere: packing the diff and pricing a run before it
+ * is sent. There is no reason for either to be optimistic.
  */
-export const CHARS_PER_TOKEN = 4;
+export const CHARS_PER_TOKEN = 2;
 
 /**
  * Share of the token ceiling available to diff content. The remainder is
@@ -93,29 +107,14 @@ export function charBudgetForTokens(tokenCeiling: number): number {
 }
 
 /**
- * Characters to tokens, rounded up, at the ratio used for packing.
+ * Characters to tokens, rounded up.
+ *
+ * An approximation, and known to be one. Without a tokenizer the action cannot
+ * prove an upper bound, so it errs low on characters per token and says so
+ * rather than claiming certainty.
  */
 export function estimateTokensFromChars(chars: number): number {
   return Math.ceil(Math.max(0, chars) / CHARS_PER_TOKEN);
-}
-
-/**
- * Conservative characters per token, for bounding a request before it is sent.
- *
- * CHARS_PER_TOKEN is a typical ratio, which is the right thing for packing a
- * budget and the wrong thing for a spend ceiling: dense or non-Latin text
- * tokenizes closer to two characters per token, so a typical ratio would price
- * such a diff at half its real cost and let it through a ceiling it exceeds.
- *
- * This remains an approximation. Without a per-model tokenizer the action
- * cannot prove an upper bound, so the ceiling is enforced against a
- * conservative estimate rather than a certainty. That limit is documented
- * rather than papered over.
- */
-export const WORST_CASE_CHARS_PER_TOKEN = 2;
-
-export function worstCaseTokensFromChars(chars: number): number {
-  return Math.ceil(Math.max(0, chars) / WORST_CASE_CHARS_PER_TOKEN);
 }
 
 /**

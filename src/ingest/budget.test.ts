@@ -2,15 +2,33 @@ import { expect, test } from 'vitest';
 
 import {
   charBudgetForTokens,
+  CHARS_PER_TOKEN,
   estimateTokensFromChars,
   outputTokenBudget,
   planDiffBudget,
   type DiffFile,
 } from './budget.js';
 
-test('rounds a character count up to tokens, so a pre-flight estimate never undercounts', () => {
-  expect(estimateTokensFromChars(4_000)).toBe(1_000);
+test('rounds a character count up to tokens, so an estimate never undercounts', () => {
+  expect(estimateTokensFromChars(4_000)).toBe(2_000);
   expect(estimateTokensFromChars(1)).toBe(1);
+});
+
+test('assumes fewer characters per token than a real diff has used', () => {
+  // A live run over this repository billed 118571 characters as 51459 input
+  // tokens, a ratio of 2.30. The budget has to sit at or below what a real
+  // diff produces, or the character budget converts to more tokens than the
+  // ceiling allows and the request it was meant to bound gets rejected.
+  const OBSERVED_CHARS_PER_TOKEN = 2.3;
+
+  expect(CHARS_PER_TOKEN).toBeLessThanOrEqual(OBSERVED_CHARS_PER_TOKEN);
+});
+
+test('keeps the diff budget inside the token ceiling at the observed ratio', () => {
+  const ceiling = 120_000;
+  const observedTokens = charBudgetForTokens(ceiling) / 2.3;
+
+  expect(observedTokens).toBeLessThan(ceiling);
 });
 
 test('scales the response allowance with the ceiling the workflow set', () => {
@@ -45,8 +63,8 @@ test('packs the smallest patches first so one oversized file cannot starve the r
 });
 
 test('converts a token ceiling into a character budget, reserving prompt headroom', () => {
-  // 120000 tokens, 70 percent of which is available to the diff, at 4 chars per token.
-  expect(charBudgetForTokens(120_000)).toBe(336_000);
+  // 120000 tokens, 70 percent of which is available to the diff, at 2 chars per token.
+  expect(charBudgetForTokens(120_000)).toBe(168_000);
 });
 
 test('never returns a negative character budget for a tiny ceiling', () => {
