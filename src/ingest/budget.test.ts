@@ -1,6 +1,28 @@
 import { expect, test } from 'vitest';
 
-import { charBudgetForTokens, planDiffBudget, type DiffFile } from './budget.js';
+import {
+  charBudgetForTokens,
+  estimateTokensFromChars,
+  outputTokenBudget,
+  planDiffBudget,
+  type DiffFile,
+} from './budget.js';
+
+test('rounds a character count up to tokens, so a pre-flight estimate never undercounts', () => {
+  expect(estimateTokensFromChars(4_000)).toBe(1_000);
+  expect(estimateTokensFromChars(1)).toBe(1);
+});
+
+test('scales the response allowance with the ceiling the workflow set', () => {
+  expect(outputTokenBudget(120_000)).toBe(12_000);
+});
+
+test('keeps a usable response allowance even under a tiny ceiling', () => {
+  // A ceiling small enough to leave no room for a reply would make every run
+  // fail on truncated output, which reads as a broken gate rather than a
+  // misconfigured one.
+  expect(outputTokenBudget(100)).toBe(1_024);
+});
 
 function textFile(path: string, patchChars: number): DiffFile {
   return {

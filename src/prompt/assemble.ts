@@ -13,17 +13,19 @@
  * behaves when a diff argues with it. That is what the benchmark measures.
  * See docs/prompt-isolation.md.
  */
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
+import { FINDINGS_TOOL, FINDINGS_TOOL_NAME } from '../findings/model.js';
 import type { BudgetPlan, DropReason } from '../ingest/budget.js';
 
 /**
- * Bump on any change to INSTRUCTIONS. Benchmark results are only comparable
- * within a single prompt version, so the version travels with every score.
- * The fingerprint test in assemble.test.ts fails if instructions change
- * without a bump.
+ * Bump on any change to the prompt contract, which is the instruction text and
+ * the findings tool schema together. Benchmark results are only comparable
+ * within a single prompt version, so the version travels with every score. The
+ * fingerprint test in assemble.test.ts fails if either half changes without a
+ * bump.
  */
-export const PROMPT_VERSION = '1';
+export const PROMPT_VERSION = '2';
 
 /** Replaces anything in untrusted content that looks like a run marker. */
 const REDACTED = '[redacted-marker]';
@@ -55,10 +57,10 @@ const INSTRUCTIONS = [
   'or rewrites a populated table, and a code path that skips an authorization',
   'check the surrounding code applies.',
   '',
-  'For each finding, give the file path, the line it anchors to, a severity of',
-  'P1 for something that should block a merge or P2 for something advisory, and',
-  'your confidence as high, medium, or low. Say what breaks and under what',
-  'input. Report nothing you cannot anchor to a line in the diff.',
+  `Report every finding through the ${FINDINGS_TOOL_NAME} tool, whose schema`,
+  'defines the fields. Anchor each finding to a line the diff changes: one',
+  'anchored anywhere else is discarded before a reviewer sees it. Say what',
+  'breaks, and under what input or state it breaks.',
   '',
   'Some files may be listed as withheld from the review. Say nothing about their',
   'contents. You have not seen them.',
@@ -87,6 +89,23 @@ export interface AssembledPrompt {
  */
 export function createRunNonce(): string {
   return randomBytes(8).toString('hex');
+}
+
+/**
+ * Fingerprint of the whole prompt contract: the instruction text and the tool
+ * schema that shapes the reply. Both decide what a seat reports, so a change to
+ * either invalidates comparison with an earlier score. A test pins this value,
+ * which turns an unversioned edit into a failing check.
+ */
+export function promptContractFingerprint(): string {
+  return createHash('sha256')
+    // Length-prefixed, so moving text across the boundary between the two
+    // halves changes the digest instead of leaving it unchanged.
+    .update(String(INSTRUCTIONS.length))
+    .update(INSTRUCTIONS)
+    .update(JSON.stringify(FINDINGS_TOOL))
+    .digest('hex')
+    .slice(0, 16);
 }
 
 /**

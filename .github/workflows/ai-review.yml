@@ -16,5 +16,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./
         with:
+          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           primary-model: claude-sonnet-5
+          # Rates are this workflow's claim, not the action's. The action holds
+          # no price table, so a stale figure here is a one-line fix and cannot
+          # reach anyone who has not set it. Check them against the vendor's
+          # published pricing before trusting a cost figure in a comment.
+          input-price-per-mtok: '3.00'
+          output-price-per-mtok: '15.00'
           blocking-disabled: ${{ vars.TWOSEAT_BLOCKING_DISABLED }}

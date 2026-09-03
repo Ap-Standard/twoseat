@@ -92,6 +92,27 @@ export function charBudgetForTokens(tokenCeiling: number): number {
   return Math.max(0, Math.floor(tokenCeiling * DIFF_TOKEN_SHARE * CHARS_PER_TOKEN));
 }
 
+/**
+ * Characters to tokens, rounded up. Used to price a request before it is sent,
+ * where an undercount would let a run exceed the ceiling it was given.
+ */
+export function estimateTokensFromChars(chars: number): number {
+  return Math.ceil(Math.max(0, chars) / CHARS_PER_TOKEN);
+}
+
+/**
+ * Share of the token ceiling a seat may spend on its reply. The rest of the
+ * headroom left by DIFF_TOKEN_SHARE covers the reviewer instructions.
+ */
+export const OUTPUT_TOKEN_SHARE = 0.1;
+
+/** Floor on the response allowance, so a small ceiling still permits a reply. */
+export const MIN_OUTPUT_TOKENS = 1024;
+
+export function outputTokenBudget(tokenCeiling: number): number {
+  return Math.max(MIN_OUTPUT_TOKENS, Math.floor(tokenCeiling * OUTPUT_TOKEN_SHARE));
+}
+
 /** Codepoint ordering, so the plan does not vary with the runner's locale. */
 function byPath(a: string, b: string): number {
   if (a === b) return 0;

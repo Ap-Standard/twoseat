@@ -13479,7 +13479,7 @@ var require_fetch = __commonJS({
     function handleFetchDone(response) {
       finalizeAndReportTiming(response, "fetch");
     }
-    function fetch2(input, init = void 0) {
+    function fetch3(input, init = void 0) {
       webidl.argumentLengthCheck(arguments, 1, "globalThis.fetch");
       let p = createDeferredPromise();
       let requestObject;
@@ -14436,7 +14436,7 @@ var require_fetch = __commonJS({
       }
     }
     module.exports = {
-      fetch: fetch2,
+      fetch: fetch3,
       Fetch,
       fetching,
       finalizeAndReportTiming
@@ -18785,7 +18785,7 @@ var require_undici = __commonJS({
     module.exports.setGlobalDispatcher = setGlobalDispatcher;
     module.exports.getGlobalDispatcher = getGlobalDispatcher;
     var fetchImpl = require_fetch().fetch;
-    module.exports.fetch = async function fetch2(init, options = void 0) {
+    module.exports.fetch = async function fetch3(init, options = void 0) {
       try {
         return await fetchImpl(init, options);
       } catch (err) {
@@ -20069,6 +20069,9 @@ var ExitCode;
   ExitCode2[ExitCode2["Success"] = 0] = "Success";
   ExitCode2[ExitCode2["Failure"] = 1] = "Failure";
 })(ExitCode || (ExitCode = {}));
+function setSecret(secret) {
+  issueCommand("add-mask", {}, secret);
+}
 function getInput(name, options) {
   const val = process.env[`INPUT_${name.replace(/ /g, "_").toUpperCase()}`] || "";
   if (options && options.required && !val) {
@@ -21143,8 +21146,8 @@ function isPlainObject2(value) {
 }
 var noop = () => "";
 async function fetchWrapper(requestOptions) {
-  const fetch2 = requestOptions.request?.fetch || globalThis.fetch;
-  if (!fetch2) {
+  const fetch3 = requestOptions.request?.fetch || globalThis.fetch;
+  if (!fetch3) {
     throw new Error(
       "fetch is not set. Please pass a fetch implementation as new Octokit({ request: { fetch }}). Learn more at https://github.com/octokit/octokit.js/#fetch-missing"
     );
@@ -21160,7 +21163,7 @@ async function fetchWrapper(requestOptions) {
   );
   let fetchResponse;
   try {
-    fetchResponse = await fetch2(requestOptions.url, {
+    fetchResponse = await fetch3(requestOptions.url, {
       method: requestOptions.method,
       body,
       redirect: requestOptions.request?.redirect,
@@ -24231,13 +24234,39 @@ function resolveKillSwitch(raw) {
     blockingDisabledReason: `unrecognized kill-switch value ${JSON.stringify(raw)}; blocking is disabled because the gate does not guess at its own configuration`
   };
 }
+function requireRate(name, raw) {
+  const value = Number(raw.trim());
+  if (!Number.isFinite(value) || value < 0) {
+    throw new ConfigError(`Input "${name}" must be zero or a positive number, got "${raw}".`);
+  }
+  return value;
+}
+function resolveTokenPrices(read) {
+  const rawInput = read("input-price-per-mtok").trim();
+  const rawOutput = read("output-price-per-mtok").trim();
+  if (rawInput === "" && rawOutput === "") {
+    return null;
+  }
+  if (rawInput === "" || rawOutput === "") {
+    throw new ConfigError(
+      'Inputs "input-price-per-mtok" and "output-price-per-mtok" must be set together. One rate alone would price a run incorrectly.'
+    );
+  }
+  return {
+    inputPerMTok: requireRate("input-price-per-mtok", rawInput),
+    outputPerMTok: requireRate("output-price-per-mtok", rawOutput)
+  };
+}
 function parseConfig(read) {
   const secondSeatModel = read("second-seat-model").trim();
+  const apiKey = read("api-key").trim();
   return {
     primaryModel: requireNonEmpty("primary-model", read("primary-model")),
     secondSeatModel: secondSeatModel === "" ? null : secondSeatModel,
+    apiKey: apiKey === "" ? null : apiKey,
     tokenCeiling: requirePositiveInteger("token-ceiling", read("token-ceiling")),
     costCeilingUsd: requirePositiveNumber("cost-ceiling-usd", read("cost-ceiling-usd")),
+    tokenPrices: resolveTokenPrices(read),
     ...resolveKillSwitch(read("blocking-disabled"))
   };
 }
@@ -24263,6 +24292,14 @@ var CHARS_PER_TOKEN = 4;
 var DIFF_TOKEN_SHARE = 0.7;
 function charBudgetForTokens(tokenCeiling) {
   return Math.max(0, Math.floor(tokenCeiling * DIFF_TOKEN_SHARE * CHARS_PER_TOKEN));
+}
+function estimateTokensFromChars(chars) {
+  return Math.ceil(Math.max(0, chars) / CHARS_PER_TOKEN);
+}
+var OUTPUT_TOKEN_SHARE = 0.1;
+var MIN_OUTPUT_TOKENS = 1024;
+function outputTokenBudget(tokenCeiling) {
+  return Math.max(MIN_OUTPUT_TOKENS, Math.floor(tokenCeiling * OUTPUT_TOKEN_SHARE));
 }
 function byPath(a, b) {
   if (a === b) return 0;
@@ -24313,8 +24350,63 @@ function toDiffFiles(apiFiles) {
 }
 
 // src/prompt/assemble.ts
-import { randomBytes } from "node:crypto";
-var PROMPT_VERSION = "1";
+import { createHash, randomBytes } from "node:crypto";
+
+// src/findings/model.ts
+var SEVERITIES = ["P1", "P2"];
+var CONFIDENCES = ["high", "medium", "low"];
+var FINDINGS_TOOL_NAME = "report_findings";
+var FINDINGS_TOOL = {
+  name: FINDINGS_TOOL_NAME,
+  description: "Report every defect you found in the diff under review. Report an empty list when the diff contains no defect you can anchor to a line it changes.",
+  input_schema: {
+    type: "object",
+    properties: {
+      findings: {
+        type: "array",
+        description: "One entry per defect. Empty when there is nothing to report.",
+        items: {
+          type: "object",
+          properties: {
+            path: {
+              type: "string",
+              description: "Path of the file, copied exactly as it appears in the diff under review."
+            },
+            line: {
+              type: "integer",
+              description: "Line number in the file as the diff leaves it. Must fall inside a hunk of that file."
+            },
+            severity: {
+              type: "string",
+              enum: ["P1", "P2"],
+              description: "P1 for a defect that should stop a merge. P2 for one worth raising but not stopping."
+            },
+            confidence: {
+              type: "string",
+              enum: ["high", "medium", "low"],
+              description: "How sure you are that this defect is real."
+            },
+            title: {
+              type: "string",
+              description: "One line naming the defect."
+            },
+            detail: {
+              type: "string",
+              description: "What breaks, and the input or state under which it breaks."
+            }
+          },
+          required: ["path", "line", "severity", "confidence", "title", "detail"],
+          additionalProperties: false
+        }
+      }
+    },
+    required: ["findings"],
+    additionalProperties: false
+  }
+};
+
+// src/prompt/assemble.ts
+var PROMPT_VERSION = "2";
 var REDACTED = "[redacted-marker]";
 var WITHHELD_REASONS = {
   "no-patch": "no patch supplied",
@@ -24342,10 +24434,10 @@ var INSTRUCTIONS = [
   "or rewrites a populated table, and a code path that skips an authorization",
   "check the surrounding code applies.",
   "",
-  "For each finding, give the file path, the line it anchors to, a severity of",
-  "P1 for something that should block a merge or P2 for something advisory, and",
-  "your confidence as high, medium, or low. Say what breaks and under what",
-  "input. Report nothing you cannot anchor to a line in the diff.",
+  `Report every finding through the ${FINDINGS_TOOL_NAME} tool, whose schema`,
+  "defines the fields. Anchor each finding to a line the diff changes: one",
+  "anchored anywhere else is discarded before a reviewer sees it. Say what",
+  "breaks, and under what input or state it breaks.",
   "",
   "Some files may be listed as withheld from the review. Say nothing about their",
   "contents. You have not seen them."
@@ -24391,47 +24483,445 @@ function findReviewComment(comments) {
   return marked.reduce((lowest, comment) => comment.id < lowest.id ? comment : lowest);
 }
 
-// src/render/skeleton.ts
+// src/render/text.ts
+var INVISIBLE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060\ufeff]/g;
+var FENCE = /`{3,}/g;
+var MENTION = /@(?=\w)/g;
+var CROSS_REFERENCE = /#(?=\d)/g;
+function neutralizePathForComment(path) {
+  return path.replace(INVISIBLE, "").replace(/[`\r\n]/g, "").trim();
+}
+function neutralizeForComment(text) {
+  return text.replace(INVISIBLE, "").replace(/\s+/g, " ").trim().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(FENCE, "`").replace(CROSS_REFERENCE, "&#35;").replace(MENTION, "&#64;");
+}
+
+// src/render/review.ts
 var DROP_REASONS = {
   "no-patch": "no patch supplied, binary or too large",
   generated: "generated file",
   "over-budget": "over the diff budget"
 };
+var REJECT_REASONS = {
+  malformed: "not shaped like a finding",
+  "unknown-file": "named a file the run did not send",
+  "unanchored-line": "anchored to a line outside the diff",
+  "bad-severity": "used a severity outside the published scale",
+  "bad-confidence": "used a confidence outside the published scale",
+  duplicate: "reported twice by the same seat",
+  "over-limit": "past the cap on findings from one seat"
+};
+function formatInt(value) {
+  return String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
 function blockingCell(config) {
   if (!config.blockingDisabled) {
     return "enabled";
   }
   return `disabled (${config.blockingDisabledReason ?? "no reason recorded"})`;
 }
-function renderSkeletonBody({
-  config,
-  plan,
-  promptVersion
-}) {
+function countBySeverity(findings) {
+  const counts = /* @__PURE__ */ new Map();
+  for (const severity of SEVERITIES) {
+    const total = findings.filter((finding) => finding.severity === severity).length;
+    if (total > 0) {
+      counts.set(severity, total);
+    }
+  }
+  return counts;
+}
+function headline(outcome) {
+  if (outcome.kind === "not-reviewed") {
+    return `**The review did not run.** ${neutralizeForComment(outcome.reason)}`;
+  }
+  const counts = countBySeverity(outcome.findings);
+  if (counts.size === 0) {
+    return "**No findings.** The seat reviewed the diff below and reported nothing.";
+  }
+  const parts = [...counts].map(([severity, total]) => `${formatInt(total)} ${severity}`);
+  return `**${parts.join(", ")}.**`;
+}
+function costRows(input) {
+  if (input.outcome.kind !== "reviewed") {
+    return [];
+  }
+  const { usage, cost } = input.outcome;
+  const rows = [
+    `| Tokens | ${formatInt(usage.inputTokens)} in, ${formatInt(usage.outputTokens)} out |`
+  ];
+  if (cost === null) {
+    rows.push("| Estimated cost | not available |");
+  } else {
+    rows.push(`| Estimated cost | $${cost.usd.toFixed(4)} |`);
+  }
+  return rows;
+}
+function costNote(input) {
+  if (input.outcome.kind !== "reviewed") {
+    return [];
+  }
+  const { cost } = input.outcome;
+  if (cost === null) {
+    return [
+      "",
+      "No cost estimate: this workflow supplied no token prices, so the dollar ceiling is not enforced. The token ceiling still applies."
+    ];
+  }
+  return ["", `Cost is estimated from the token counts above, ${cost.basis}.`];
+}
+function findingLines(findings) {
+  if (findings.length === 0) {
+    return [];
+  }
+  const lines = ["", "#### Findings", ""];
+  for (const finding of findings) {
+    const anchor = `${neutralizePathForComment(finding.path)}:${String(finding.line)}`;
+    lines.push(
+      `- **${finding.severity}** \`${anchor}\` **${neutralizeForComment(finding.title)}**`,
+      `  Confidence ${finding.confidence}, reported by the ${finding.seat} seat running \`${neutralizePathForComment(finding.model)}\`.`,
+      `  ${neutralizeForComment(finding.detail)}`
+    );
+  }
+  return lines;
+}
+function withheldLines(plan) {
+  if (plan.dropped.length === 0) {
+    return [];
+  }
+  const lines = ["", `#### Not sent to a seat (${formatInt(plan.dropped.length)})`, ""];
+  for (const file of plan.dropped) {
+    lines.push(
+      `- \`${neutralizePathForComment(file.path)}\` (${DROP_REASONS[file.reason]}, ${formatInt(file.chars)} characters)`
+    );
+  }
+  return lines;
+}
+function discardedLines(outcome) {
+  if (outcome.kind !== "reviewed" || outcome.rejected.length === 0) {
+    return [];
+  }
+  const counts = /* @__PURE__ */ new Map();
+  for (const entry of outcome.rejected) {
+    counts.set(entry.reason, (counts.get(entry.reason) ?? 0) + 1);
+  }
+  const lines = ["", `#### Discarded seat output (${formatInt(outcome.rejected.length)})`, ""];
+  for (const reason of Object.keys(REJECT_REASONS)) {
+    const total = counts.get(reason);
+    if (total !== void 0) {
+      lines.push(`- ${formatInt(total)} ${REJECT_REASONS[reason]}`);
+    }
+  }
+  return lines;
+}
+function renderReviewBody(input) {
+  const { config, plan, promptVersion, outcome } = input;
   const lines = [
     COMMENT_MARKER,
     "### twoseat",
     "",
-    "No model review has run. This release ingests the pull request diff and",
-    "assembles the reviewer prompt, then reports what a review would be given.",
-    "Findings arrive in a later release.",
+    headline(outcome),
     "",
     "| Field | Value |",
     "| --- | --- |",
-    `| Files queued for review | ${plan.included.length} |`,
-    `| Diff characters | ${plan.charsUsed} of ${plan.charBudget} budgeted |`,
-    `| Primary seat | \`${config.primaryModel}\` |`,
-    `| Second seat | ${config.secondSeatModel === null ? "not configured" : `\`${config.secondSeatModel}\``} |`,
+    `| Files reviewed | ${formatInt(plan.included.length)} |`,
+    `| Diff characters | ${formatInt(plan.charsUsed)} of ${formatInt(plan.charBudget)} budgeted |`,
+    `| Primary seat | \`${neutralizePathForComment(config.primaryModel)}\` |`,
+    `| Second seat | ${config.secondSeatModel === null ? "not configured" : `\`${neutralizePathForComment(config.secondSeatModel)}\``} |`,
+    `| Prompt version | ${promptVersion} |`,
+    ...costRows(input),
     `| Blocking | ${blockingCell(config)} |`,
-    `| Prompt version | ${promptVersion} |`
+    ...costNote(input),
+    ...findingLines(outcome.kind === "reviewed" ? outcome.findings : []),
+    ...withheldLines(plan),
+    ...discardedLines(outcome)
   ];
-  if (plan.dropped.length > 0) {
-    lines.push("", `**Not sent to a seat (${plan.dropped.length}):**`, "");
-    for (const file of plan.dropped) {
-      lines.push(`- \`${file.path}\` (${DROP_REASONS[file.reason]}, ${file.chars} characters)`);
+  return lines.join("\n");
+}
+
+// src/cost.ts
+var PER_MILLION = 1e6;
+function tokens(value) {
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+function describeRates(prices) {
+  return `at $${prices.inputPerMTok.toFixed(2)} in and $${prices.outputPerMTok.toFixed(2)} out per million tokens, from the rates this workflow supplied`;
+}
+function estimateCostUsd(usage, prices) {
+  const usd = tokens(usage.inputTokens) * prices.inputPerMTok / PER_MILLION + tokens(usage.outputTokens) * prices.outputPerMTok / PER_MILLION;
+  return { usd, basis: describeRates(prices) };
+}
+function worstCaseCostUsd(worstCase, prices) {
+  return estimateCostUsd(
+    { inputTokens: worstCase.inputTokens, outputTokens: worstCase.maxOutputTokens },
+    prices
+  ).usd;
+}
+
+// src/findings/anchors.ts
+var HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/;
+function parseHunkRanges(patch) {
+  const ranges = [];
+  for (const line of patch.split("\n")) {
+    const match = HUNK_HEADER.exec(line);
+    if (match === null) {
+      continue;
+    }
+    const start = Number(match[1]);
+    const count = match[2] === void 0 ? 1 : Number(match[2]);
+    if (count === 0) {
+      if (start >= 1) {
+        ranges.push({ start, end: start });
+      }
+      continue;
+    }
+    ranges.push({ start, end: start + count - 1 });
+  }
+  return ranges;
+}
+function isAnchoredInDiff(files, path, line) {
+  if (!Number.isInteger(line) || line < 1) {
+    return false;
+  }
+  const file = files.find((candidate) => candidate.path === path);
+  if (file === void 0) {
+    return false;
+  }
+  return parseHunkRanges(file.patch).some((range) => line >= range.start && line <= range.end);
+}
+
+// src/findings/parse.ts
+var MAX_TITLE_CHARS = 160;
+var MAX_DETAIL_CHARS = 800;
+var MAX_FINDINGS = 40;
+function truncate(value, limit) {
+  if (value.length <= limit) {
+    return value;
+  }
+  return `${value.slice(0, limit - 1)}\u2026`;
+}
+function readString(source, key) {
+  const value = source[key];
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
+function byText(a, b) {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+function bySeverityThenLocation(a, b) {
+  const severityDelta = SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity);
+  if (severityDelta !== 0) return severityDelta;
+  const pathDelta = byText(a.path, b.path);
+  if (pathDelta !== 0) return pathDelta;
+  if (a.line !== b.line) return a.line - b.line;
+  return byText(a.title, b.title);
+}
+function parseSeatFindings(raw, context3) {
+  if (typeof raw !== "object" || raw === null || !Array.isArray(raw.findings)) {
+    return { findings: [], rejected: [{ reason: "malformed", path: null }] };
+  }
+  const entries = raw.findings;
+  const findings = [];
+  const rejected = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const entry of entries) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      rejected.push({ reason: "malformed", path: null });
+      continue;
+    }
+    const source = entry;
+    const path = readString(source, "path");
+    const title = readString(source, "title");
+    const detail = readString(source, "detail");
+    const line = source["line"];
+    if (path === null || title === null || detail === null || typeof line !== "number") {
+      rejected.push({ reason: "malformed", path });
+      continue;
+    }
+    const severity = readString(source, "severity");
+    if (severity === null || !SEVERITIES.includes(severity)) {
+      rejected.push({ reason: "bad-severity", path });
+      continue;
+    }
+    const confidence = readString(source, "confidence");
+    if (confidence === null || !CONFIDENCES.includes(confidence)) {
+      rejected.push({ reason: "bad-confidence", path });
+      continue;
+    }
+    if (!context3.files.some((file) => file.path === path)) {
+      rejected.push({ reason: "unknown-file", path });
+      continue;
+    }
+    if (!isAnchoredInDiff(context3.files, path, line)) {
+      rejected.push({ reason: "unanchored-line", path });
+      continue;
+    }
+    const key = `${path}\0${String(line)}\0${title}`;
+    if (seen.has(key)) {
+      rejected.push({ reason: "duplicate", path });
+      continue;
+    }
+    seen.add(key);
+    if (findings.length >= MAX_FINDINGS) {
+      rejected.push({ reason: "over-limit", path });
+      continue;
+    }
+    findings.push({
+      seat: context3.seat,
+      model: context3.model,
+      path,
+      line,
+      severity,
+      confidence,
+      title: truncate(title, MAX_TITLE_CHARS),
+      detail: truncate(detail, MAX_DETAIL_CHARS)
+    });
+  }
+  return { findings: findings.sort(bySeverityThenLocation), rejected };
+}
+
+// src/seats/anthropic.ts
+var ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
+var ANTHROPIC_VERSION = "2023-06-01";
+var DEFAULT_TIMEOUT_MS = 12e4;
+var MAX_ERROR_BODY_CHARS = 200;
+function redact(message, apiKey) {
+  return apiKey === "" ? message : message.split(apiKey).join("[redacted]");
+}
+function readUsage(body) {
+  const usage = body["usage"];
+  if (typeof usage !== "object" || usage === null) {
+    return { inputTokens: 0, outputTokens: 0 };
+  }
+  const source = usage;
+  const input = source["input_tokens"];
+  const output = source["output_tokens"];
+  return {
+    inputTokens: typeof input === "number" ? input : 0,
+    outputTokens: typeof output === "number" ? output : 0
+  };
+}
+function findToolInput(body) {
+  const content = body["content"];
+  if (!Array.isArray(content)) {
+    return { found: false };
+  }
+  for (const block of content) {
+    if (block.type === "tool_use" && block.name === FINDINGS_TOOL_NAME) {
+      return { found: true, input: block.input };
     }
   }
-  return lines.join("\n");
+  return { found: false };
+}
+async function callSeat(request2, fetchImpl = fetch) {
+  const body = {
+    model: request2.model,
+    max_tokens: request2.maxOutputTokens,
+    system: request2.instructions,
+    tools: [FINDINGS_TOOL],
+    // Forced. A seat that could answer in prose would produce a reply the
+    // action has to interpret, and interpreting a reply built from a hostile
+    // diff is the thing this design avoids.
+    tool_choice: { type: "tool", name: FINDINGS_TOOL_NAME },
+    messages: [{ role: "user", content: request2.data }]
+  };
+  let response;
+  try {
+    response = await fetchImpl(ANTHROPIC_MESSAGES_URL, {
+      method: "POST",
+      headers: {
+        "x-api-key": request2.apiKey,
+        "anthropic-version": ANTHROPIC_VERSION,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(request2.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+    });
+  } catch (error2) {
+    const detail = error2 instanceof Error ? error2.message : String(error2);
+    return { kind: "failed", message: redact(`seat request failed: ${detail}`, request2.apiKey) };
+  }
+  if (!response.ok) {
+    const raw = await response.text().catch(() => "");
+    const snippet = raw.slice(0, MAX_ERROR_BODY_CHARS).replace(/\s+/g, " ").trim();
+    return {
+      kind: "failed",
+      message: redact(
+        `seat API returned ${String(response.status)}: ${snippet}`,
+        request2.apiKey
+      )
+    };
+  }
+  let parsed;
+  try {
+    parsed = await response.json();
+  } catch {
+    return { kind: "failed", message: "seat API returned a body that is not JSON" };
+  }
+  if (typeof parsed !== "object" || parsed === null) {
+    return { kind: "failed", message: "seat API returned a body that is not an object" };
+  }
+  const lookup = findToolInput(parsed);
+  if (!lookup.found) {
+    return {
+      kind: "failed",
+      message: `seat replied without calling the ${FINDINGS_TOOL_NAME} tool`
+    };
+  }
+  return {
+    kind: "ok",
+    toolInput: lookup.input,
+    usage: readUsage(parsed)
+  };
+}
+
+// src/run-review.ts
+var PRIMARY_SEAT = "primary";
+async function runReview(config, plan, prompt, seat = callSeat) {
+  if (plan.included.length === 0) {
+    return { kind: "not-reviewed", reason: "This diff contains no file the gate can review." };
+  }
+  if (config.apiKey === null) {
+    return {
+      kind: "not-reviewed",
+      reason: "No API key reached this run, which is the expected state for a fork."
+    };
+  }
+  const maxOutputTokens = outputTokenBudget(config.tokenCeiling);
+  if (config.tokenPrices !== null) {
+    const inputTokens = estimateTokensFromChars(prompt.instructions.length + prompt.data.length);
+    const worstCase = worstCaseCostUsd({ inputTokens, maxOutputTokens }, config.tokenPrices);
+    if (worstCase > config.costCeilingUsd) {
+      return {
+        kind: "not-reviewed",
+        reason: `Skipped to stay inside the cost ceiling. This run could have cost up to $${worstCase.toFixed(4)} against a ceiling of $${config.costCeilingUsd.toFixed(4)}.`
+      };
+    }
+  }
+  const outcome = await seat({
+    apiKey: config.apiKey,
+    model: config.primaryModel,
+    instructions: prompt.instructions,
+    data: prompt.data,
+    maxOutputTokens
+  });
+  if (outcome.kind === "failed") {
+    return { kind: "not-reviewed", reason: outcome.message };
+  }
+  const { findings, rejected } = parseSeatFindings(outcome.toolInput, {
+    seat: PRIMARY_SEAT,
+    model: config.primaryModel,
+    files: plan.included
+  });
+  return {
+    kind: "reviewed",
+    findings,
+    rejected,
+    usage: outcome.usage,
+    cost: config.tokenPrices === null ? null : estimateCostUsd(outcome.usage, config.tokenPrices)
+  };
 }
 
 // src/main.ts
@@ -24462,6 +24952,21 @@ async function upsertSummaryComment(octokit, pr, body) {
     body
   });
 }
+function annotate(outcome) {
+  if (outcome.kind !== "reviewed") {
+    warning(`twoseat did not review this diff: ${outcome.reason}`);
+    return;
+  }
+  for (const finding of outcome.findings) {
+    const properties = { file: finding.path, startLine: finding.line };
+    const message = `${finding.severity} ${finding.title}: ${finding.detail}`;
+    if (finding.severity === "P1") {
+      error(message, properties);
+    } else {
+      warning(message, properties);
+    }
+  }
+}
 async function run() {
   if (context2.eventName !== "pull_request") {
     const received = context2.eventName || "none";
@@ -24471,6 +24976,9 @@ async function run() {
     return;
   }
   const config = parseConfig((name) => getInput(name));
+  if (config.apiKey !== null) {
+    setSecret(config.apiKey);
+  }
   if (config.blockingDisabled && config.blockingDisabledReason !== null) {
     warning(`Blocking is disabled for this run: ${config.blockingDisabledReason}`);
   }
@@ -24486,20 +24994,27 @@ async function run() {
     charBudget: charBudgetForTokens(config.tokenCeiling)
   });
   info(
-    `Queued ${plan.included.length} file(s) using ${plan.charsUsed} of ${plan.charBudget} budgeted characters. Dropped ${plan.dropped.length}.`
+    `Queued ${String(plan.included.length)} file(s) using ${String(plan.charsUsed)} of ${String(plan.charBudget)} budgeted characters. Dropped ${String(plan.dropped.length)}.`
   );
   const prompt = assembleReviewPrompt({ plan, nonce: createRunNonce() });
-  info(
-    `Prompt version ${prompt.promptVersion}, ${prompt.data.length} characters inside the data region.`
-  );
+  const outcome = await runReview(config, plan, prompt);
+  annotate(outcome);
   await upsertSummaryComment(
     octokit,
     { owner, repo, number },
-    renderSkeletonBody({ config, plan, promptVersion: prompt.promptVersion })
+    renderReviewBody({ config, plan, promptVersion: prompt.promptVersion, outcome })
   );
+  const findings = outcome.kind === "reviewed" ? outcome.findings : [];
   setOutput("files-reviewed", plan.included.length);
   setOutput("files-dropped", plan.dropped.length);
   setOutput("prompt-version", prompt.promptVersion);
+  setOutput("reviewed", outcome.kind === "reviewed");
+  setOutput("findings", findings.length);
+  setOutput("findings-p1", findings.filter((finding) => finding.severity === "P1").length);
+  setOutput(
+    "estimated-cost-usd",
+    outcome.kind === "reviewed" && outcome.cost !== null ? outcome.cost.usd.toFixed(4) : ""
+  );
 }
 run().catch((error2) => {
   error(`twoseat did not complete: ${describeError(error2)}`);
