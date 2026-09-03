@@ -39,11 +39,38 @@ function findingAt(overrides: Record<string, unknown> = {}): Record<string, unkn
     line: 11,
     severity: 'P1',
     confidence: 'high',
+    category: 'sql-injection',
     title: 'unawaited promise',
     detail: 'The write is never awaited, so a failure is lost.',
     ...overrides,
   };
 }
+
+test('keeps a defect category the seat reported', () => {
+  const raw = { findings: [findingAt({ category: 'missing-await' })] };
+
+  expect(parseSeatFindings(raw, context).findings[0]?.category).toBe('missing-await');
+});
+
+test('files an unrecognized category as other rather than discarding the finding', () => {
+  // The taxonomy is for grouping scores. Throwing away a correctly located
+  // defect because its label is unfamiliar would trade the valuable half of a
+  // finding for the cosmetic half.
+  const raw = { findings: [findingAt({ category: 'quantum-entanglement' })] };
+  const { findings, rejected } = parseSeatFindings(raw, context);
+
+  expect(findings[0]?.category).toBe('other');
+  expect(rejected).toEqual([]);
+});
+
+test('files a missing category as other, for the same reason', () => {
+  const incomplete = findingAt();
+  delete incomplete['category'];
+
+  expect(parseSeatFindings({ findings: [incomplete] }, context).findings[0]?.category).toBe(
+    'other',
+  );
+});
 
 test('accepts a well-formed finding and stamps it with the seat and model', () => {
   const { findings, rejected } = parseSeatFindings({ findings: [findingAt()] }, context);
@@ -57,6 +84,7 @@ test('accepts a well-formed finding and stamps it with the seat and model', () =
       line: 11,
       severity: 'P1',
       confidence: 'high',
+      category: 'sql-injection',
       title: 'unawaited promise',
       detail: 'The write is never awaited, so a failure is lost.',
     },

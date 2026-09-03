@@ -32,6 +32,7 @@ const finding: Finding = {
   line: 2,
   severity: 'P1',
   confidence: 'high',
+  category: 'missing-await',
   title: 'unawaited write',
   detail: 'The write is never awaited, so a failure is dropped.',
 };

@@ -24355,6 +24355,21 @@ import { createHash, randomBytes } from "node:crypto";
 // src/findings/model.ts
 var SEVERITIES = ["P1", "P2"];
 var CONFIDENCES = ["high", "medium", "low"];
+var CATEGORIES = [
+  "sql-injection",
+  "missing-await",
+  "toctou",
+  "secret-in-diff",
+  "n-plus-one",
+  "unsafe-migration",
+  "authz-bypass",
+  "error-swallowing",
+  "resource-leak",
+  "input-validation",
+  "unsafe-deserialization",
+  "other"
+];
+var FALLBACK_CATEGORY = "other";
 var FINDINGS_TOOL_NAME = "report_findings";
 var FINDINGS_TOOL = {
   name: FINDINGS_TOOL_NAME,
@@ -24386,6 +24401,11 @@ var FINDINGS_TOOL = {
               enum: ["high", "medium", "low"],
               description: "How sure you are that this defect is real."
             },
+            category: {
+              type: "string",
+              enum: [...CATEGORIES],
+              description: "The kind of defect. Use other when none of the listed classes fits, rather than forcing a poor match."
+            },
             title: {
               type: "string",
               description: "One line naming the defect."
@@ -24395,7 +24415,7 @@ var FINDINGS_TOOL = {
               description: "What breaks, and the input or state under which it breaks."
             }
           },
-          required: ["path", "line", "severity", "confidence", "title", "detail"],
+          required: ["path", "line", "severity", "confidence", "category", "title", "detail"],
           additionalProperties: false
         }
       }
@@ -24406,7 +24426,7 @@ var FINDINGS_TOOL = {
 };
 
 // src/prompt/assemble.ts
-var PROMPT_VERSION = "2";
+var PROMPT_VERSION = "3";
 var REDACTED = "[redacted-marker]";
 var WITHHELD_REASONS = {
   "no-patch": "no patch supplied",
@@ -24781,6 +24801,8 @@ function parseSeatFindings(raw, context3) {
       rejected.push({ reason: "unanchored-line", path });
       continue;
     }
+    const rawCategory = readString(source, "category");
+    const category = rawCategory !== null && CATEGORIES.includes(rawCategory) ? rawCategory : FALLBACK_CATEGORY;
     const key = JSON.stringify([path, line, title]);
     if (seen.has(key)) {
       rejected.push({ reason: "duplicate", path });
@@ -24798,6 +24820,7 @@ function parseSeatFindings(raw, context3) {
       line,
       severity,
       confidence,
+      category,
       title: truncate(title, MAX_TITLE_CHARS),
       detail: truncate(detail, MAX_DETAIL_CHARS)
     });

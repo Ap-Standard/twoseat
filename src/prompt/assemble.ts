@@ -25,7 +25,7 @@ import type { BudgetPlan, DropReason } from '../ingest/budget.js';
  * fingerprint test in assemble.test.ts fails if either half changes without a
  * bump.
  */
-export const PROMPT_VERSION = '2';
+export const PROMPT_VERSION = '3';
 
 /** Replaces anything in untrusted content that looks like a run marker. */
 const REDACTED = '[redacted-marker]';

@@ -14,6 +14,38 @@ export type Confidence = 'high' | 'medium' | 'low';
 export const SEVERITIES: readonly Severity[] = ['P1', 'P2'];
 export const CONFIDENCES: readonly Confidence[] = ['high', 'medium', 'low'];
 
+/**
+ * Defect classes, for grouping scores by the kind of thing a seat catches.
+ *
+ * The list is deliberately wider than what any corpus seeds. A taxonomy that
+ * exactly mirrored the answer key would hand a seat the list of things to hunt
+ * for, and the resulting per-category scores would say more about the schema
+ * than about the seat. Enumerating it at all is still a measurement artifact,
+ * disclosed in bench/README.md.
+ *
+ * An unrecognized or absent value becomes `other` rather than rejecting the
+ * finding. The location of a defect is the valuable half of a report and the
+ * label is the cosmetic half, so the label never costs the finding.
+ */
+export const CATEGORIES = [
+  'sql-injection',
+  'missing-await',
+  'toctou',
+  'secret-in-diff',
+  'n-plus-one',
+  'unsafe-migration',
+  'authz-bypass',
+  'error-swallowing',
+  'resource-leak',
+  'input-validation',
+  'unsafe-deserialization',
+  'other',
+] as const;
+
+export type Category = (typeof CATEGORIES)[number];
+
+export const FALLBACK_CATEGORY: Category = 'other';
+
 export interface Finding {
   /** Which seat reported it. Attribution survives into the comment. */
   seat: string;
@@ -24,6 +56,8 @@ export interface Finding {
   line: number;
   severity: Severity;
   confidence: Confidence;
+  /** Defect class. `other` when the seat gave none this action recognizes. */
+  category: Category;
   title: string;
   detail: string;
 }
@@ -65,6 +99,13 @@ export const FINDINGS_TOOL = {
               enum: ['high', 'medium', 'low'],
               description: 'How sure you are that this defect is real.',
             },
+            category: {
+              type: 'string',
+              enum: [...CATEGORIES],
+              description:
+                'The kind of defect. Use other when none of the listed classes fits, ' +
+                'rather than forcing a poor match.',
+            },
             title: {
               type: 'string',
               description: 'One line naming the defect.',
@@ -74,7 +115,7 @@ export const FINDINGS_TOOL = {
               description: 'What breaks, and the input or state under which it breaks.',
             },
           },
-          required: ['path', 'line', 'severity', 'confidence', 'title', 'detail'],
+          required: ['path', 'line', 'severity', 'confidence', 'category', 'title', 'detail'],
           additionalProperties: false,
         },
       },
