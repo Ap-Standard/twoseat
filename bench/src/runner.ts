@@ -139,6 +139,21 @@ export async function runCase(benchCase: BenchCase, deps: RunnerDeps): Promise<C
   };
 }
 
+export interface RunOptions {
+  runsPerCase?: number;
+  /**
+   * Give up after this many cases in a row fail to reach a seat.
+   *
+   * A bad key, a wrong model id, or a malformed request fails every case
+   * identically. Finding that out on case 48 costs 48 calls and tells you
+   * nothing that case 3 did not. Zero disables the check.
+   */
+  abortAfterConsecutiveFailures?: number;
+  /** Run one case by id, for diagnosing without paying for the whole corpus. */
+  only?: string;
+  onCase?: (result: CaseRun, done: number, total: number) => void;
+}
+
 /**
  * Runs the corpus, one case at a time.
  *
@@ -149,16 +164,29 @@ export async function runCase(benchCase: BenchCase, deps: RunnerDeps): Promise<C
 export async function runCorpus(
   cases: readonly BenchCase[],
   deps: RunnerDeps,
-  runsPerCase = 1,
-  onProgress?: (done: number, total: number, benchCase: BenchCase) => void,
+  options: RunOptions = {},
 ): Promise<CaseRun[]> {
+  const runsPerCase = options.runsPerCase ?? 1;
+  const abortAfter = options.abortAfterConsecutiveFailures ?? 0;
+  const selected =
+    options.only === undefined
+      ? cases
+      : cases.filter((benchCase) => benchCase.id === options.only);
+
   const results: CaseRun[] = [];
-  const total = cases.length * runsPerCase;
+  const total = selected.length * runsPerCase;
+  let consecutiveFailures = 0;
 
   for (let pass = 0; pass < runsPerCase; pass += 1) {
-    for (const benchCase of cases) {
-      results.push(await runCase(benchCase, deps));
-      onProgress?.(results.length, total, benchCase);
+    for (const benchCase of selected) {
+      const result = await runCase(benchCase, deps);
+      results.push(result);
+      options.onCase?.(result, results.length, total);
+
+      consecutiveFailures = result.reviewed ? 0 : consecutiveFailures + 1;
+      if (abortAfter > 0 && consecutiveFailures >= abortAfter) {
+        return results;
+      }
     }
   }
 

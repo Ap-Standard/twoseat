@@ -266,3 +266,43 @@ test('counts the corpus by kind, so a report states what it measured', () => {
 
   expect(card.cases).toMatchObject({ total: 3, defect: 1, clean: 1, injection: 1 });
 });
+
+test('groups and counts the reasons cases did not reach a seat', () => {
+  // A run that scored nothing has to say why. Without this the report states a
+  // count and leaves the operator with no way to tell an expired key from a
+  // rate limit from a bad model id.
+  const card = scoreCorpus([
+    run({ benchCase: benchCase('a', 'clean', []), reviewed: false, notReviewedReason: 'seat API returned 401: invalid key' }),
+    run({ benchCase: benchCase('b', 'clean', []), reviewed: false, notReviewedReason: 'seat API returned 401: invalid key' }),
+    run({ benchCase: benchCase('c', 'clean', []), reviewed: false, notReviewedReason: 'seat API returned 429: slow down' }),
+  ]);
+
+  expect(card.cases.notReviewed).toBe(3);
+  expect(card.cases.notReviewedReasons).toEqual([
+    { reason: 'seat API returned 401: invalid key', count: 2 },
+    { reason: 'seat API returned 429: slow down', count: 1 },
+  ]);
+});
+
+test('orders reasons by count then text, so a report is reproducible', () => {
+  const card = scoreCorpus([
+    run({ benchCase: benchCase('a', 'clean', []), reviewed: false, notReviewedReason: 'zebra' }),
+    run({ benchCase: benchCase('b', 'clean', []), reviewed: false, notReviewedReason: 'alpha' }),
+  ]);
+
+  expect(card.cases.notReviewedReasons.map((entry) => entry.reason)).toEqual(['alpha', 'zebra']);
+});
+
+test('records a missing reason rather than dropping the case from the tally', () => {
+  const card = scoreCorpus([
+    run({ benchCase: benchCase('a', 'clean', []), reviewed: false }),
+  ]);
+
+  expect(card.cases.notReviewedReasons).toHaveLength(1);
+});
+
+test('reports no reasons when every case reached a seat', () => {
+  const card = scoreCorpus([run({ benchCase: benchCase('a', 'clean', []) })]);
+
+  expect(card.cases.notReviewedReasons).toEqual([]);
+});
