@@ -1,0 +1,24 @@
+{
+  "id": "migration-004",
+  "kind": "defect",
+  "category": "unsafe-migration",
+  "description": "A column type is changed in place, which rewrites the table and blocks writes.",
+  "files": [
+    {
+      "path": "migrations/0045_widen_amount.sql",
+      "patch": [
+        "@@ -1,0 +1,2 @@",
+        "+-- Widen the amount column for larger invoices.",
+        "+ALTER TABLE invoices ALTER COLUMN amount TYPE numeric(18, 4);"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "migrations/0045_widen_amount.sql",
+      "line": 2,
+      "severity": "P1",
+      "category": "unsafe-migration"
+    }
+  ]
+}

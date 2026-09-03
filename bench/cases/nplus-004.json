@@ -1,0 +1,33 @@
+{
+  "id": "nplus-004",
+  "kind": "defect",
+  "category": "n-plus-one",
+  "description": "A nightly job queries once per row over a table with no bound, so runtime grows with the table.",
+  "files": [
+    {
+      "path": "src/jobs/recompute-scores.ts",
+      "patch": [
+        "@@ -12,6 +12,7 @@",
+        " export async function recomputeScores(db: Db) {",
+        "-  const rows = await db.accounts.streamAll();",
+        "-  for await (const batch of rows.chunk(500)) {",
+        "-    await db.scores.upsertMany(batch.map(score));",
+        "-  }",
+        "+  const accounts = await db.accounts.selectAll();",
+        "+  for (const account of accounts) {",
+        "+    const history = await db.events.byAccount(account.id);",
+        "+    await db.scores.upsert(account.id, score(account, history));",
+        "+  }",
+        " }"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/jobs/recompute-scores.ts",
+      "line": 15,
+      "severity": "P1",
+      "category": "n-plus-one"
+    }
+  ]
+}

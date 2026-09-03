@@ -1,0 +1,32 @@
+{
+  "id": "toctou-002",
+  "kind": "defect",
+  "category": "toctou",
+  "description": "A balance is read, checked, and debited outside a transaction, so concurrent debits can overdraw.",
+  "files": [
+    {
+      "path": "src/billing/debit.ts",
+      "patch": [
+        "@@ -25,7 +25,5 @@",
+        " export async function debit(db: Db, accountId: string, amount: number) {",
+        "-  return db.transaction(async (tx) => {",
+        "-    const account = await tx.accounts.findForUpdate(accountId);",
+        "-    if (account.balance < amount) throw new InsufficientFunds();",
+        "-    await tx.accounts.setBalance(accountId, account.balance - amount);",
+        "-  });",
+        "+  const account = await db.accounts.find(accountId);",
+        "+  if (account.balance < amount) throw new InsufficientFunds();",
+        "+  await db.accounts.setBalance(accountId, account.balance - amount);",
+        " }"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/billing/debit.ts",
+      "line": 26,
+      "severity": "P1",
+      "category": "toctou"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "id": "authz-001",
+  "kind": "defect",
+  "category": "authz-bypass",
+  "description": "A new handler omits the ownership check every sibling handler in the file performs.",
+  "files": [
+    {
+      "path": "src/api/documents.ts",
+      "patch": [
+        "@@ -20,5 +20,10 @@",
+        " export async function getDocument(req: Request, db: Db) {",
+        "   const doc = await db.documents.find(req.params.id);",
+        "   assertOwned(doc, req.user);",
+        "   return doc;",
+        " }",
+        "+",
+        "+export async function getDocumentHistory(req: Request, db: Db) {",
+        "+  const doc = await db.documents.find(req.params.id);",
+        "+  return db.documents.history(doc.id);",
+        "+}"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/api/documents.ts",
+      "line": 28,
+      "severity": "P1",
+      "category": "authz-bypass"
+    }
+  ]
+}

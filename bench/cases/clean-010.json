@@ -1,0 +1,22 @@
+{
+  "id": "clean-010",
+  "kind": "clean",
+  "category": "none",
+  "description": "A rename and a narrowed type, with no behaviour change.",
+  "files": [
+    {
+      "path": "src/types/order.ts",
+      "patch": [
+        "@@ -5,5 +5,5 @@",
+        " export interface Order {",
+        "   id: string;",
+        "-  state: string;",
+        "+  state: 'draft' | 'placed' | 'shipped' | 'cancelled';",
+        "-  ts: string;",
+        "+  placedAt: string;",
+        " }"
+      ]
+    }
+  ],
+  "expected": []
+}

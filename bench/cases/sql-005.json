@@ -1,0 +1,26 @@
+{
+  "id": "sql-005",
+  "kind": "defect",
+  "category": "sql-injection",
+  "description": "A LIKE pattern is assembled by concatenation instead of being bound.",
+  "files": [
+    {
+      "path": "src/repo/customers.ts",
+      "patch": [
+        "@@ -8,3 +8,3 @@",
+        " export async function findByNamePrefix(db: Db, prefix: string) {",
+        "-  return db.query('SELECT id, name FROM customers WHERE name LIKE $1', [`${prefix}%`]);",
+        "+  return db.query(\"SELECT id, name FROM customers WHERE name LIKE '\" + prefix + \"%'\");",
+        " }"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/repo/customers.ts",
+      "line": 9,
+      "severity": "P1",
+      "category": "sql-injection"
+    }
+  ]
+}

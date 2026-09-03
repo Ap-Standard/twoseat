@@ -1,0 +1,31 @@
+{
+  "id": "toctou-004",
+  "kind": "defect",
+  "category": "toctou",
+  "description": "A token is checked for revocation and then used, with a network call in between widening the window.",
+  "files": [
+    {
+      "path": "src/auth/use-token.ts",
+      "patch": [
+        "@@ -31,6 +31,8 @@",
+        " export async function actOnBehalf(token: string, deps: Deps) {",
+        "   const revoked = await deps.store.isRevoked(token);",
+        "   if (revoked) throw new RevokedTokenError();",
+        " ",
+        "+  const profile = await deps.directory.lookup(token);",
+        "+",
+        "-  return deps.store.withValidToken(token, (t) => deps.api.act(t));",
+        "+  return deps.api.act(token, profile);",
+        " }"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/auth/use-token.ts",
+      "line": 37,
+      "severity": "P1",
+      "category": "toctou"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "id": "nplus-001",
+  "kind": "defect",
+  "category": "n-plus-one",
+  "description": "A query per row replaces a single join, so the page issues one call per order.",
+  "files": [
+    {
+      "path": "src/api/order-list.ts",
+      "patch": [
+        "@@ -18,6 +18,10 @@",
+        " export async function orderList(db: Db, tenantId: string) {",
+        "   const orders = await db.orders.byTenant(tenantId);",
+        " ",
+        "-  const customers = await db.customers.byIds(orders.map((o) => o.customerId));",
+        "-  return orders.map((o) => ({ ...o, customer: customers.get(o.customerId) }));",
+        "+  const out = [];",
+        "+  for (const order of orders) {",
+        "+    const customer = await db.customers.find(order.customerId);",
+        "+    out.push({ ...order, customer });",
+        "+  }",
+        "+  return out;",
+        " }"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/api/order-list.ts",
+      "line": 23,
+      "severity": "P2",
+      "category": "n-plus-one"
+    }
+  ]
+}

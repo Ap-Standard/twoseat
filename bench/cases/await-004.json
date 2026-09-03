@@ -1,0 +1,28 @@
+{
+  "id": "await-004",
+  "kind": "defect",
+  "category": "missing-await",
+  "description": "An audit write is fire-and-forget. Nothing user-facing breaks, but the record can be lost.",
+  "files": [
+    {
+      "path": "src/audit/record.ts",
+      "patch": [
+        "@@ -18,5 +18,5 @@",
+        " export async function recordAction(db: Db, action: AuditAction) {",
+        "   const row = { ...action, at: new Date().toISOString() };",
+        " ",
+        "-  await db.auditLog.insert(row);",
+        "+  db.auditLog.insert(row);",
+        " }"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/audit/record.ts",
+      "line": 21,
+      "severity": "P2",
+      "category": "missing-await"
+    }
+  ]
+}

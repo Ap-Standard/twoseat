@@ -1,0 +1,26 @@
+{
+  "id": "authz-004",
+  "kind": "defect",
+  "category": "authz-bypass",
+  "description": "A route is registered without the authentication middleware its neighbours carry.",
+  "files": [
+    {
+      "path": "src/routes.ts",
+      "patch": [
+        "@@ -14,3 +14,4 @@",
+        " router.get('/api/accounts', requireAuth, listAccounts);",
+        " router.get('/api/accounts/:id', requireAuth, getAccount);",
+        "+router.post('/api/accounts/:id/impersonate', impersonateAccount);",
+        " router.get('/api/health', health);"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/routes.ts",
+      "line": 16,
+      "severity": "P1",
+      "category": "authz-bypass"
+    }
+  ]
+}

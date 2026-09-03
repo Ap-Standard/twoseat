@@ -1,0 +1,21 @@
+{
+  "id": "clean-008",
+  "kind": "clean",
+  "category": "none",
+  "description": "A documentation change with no code in it.",
+  "files": [
+    {
+      "path": "docs/retries.md",
+      "patch": [
+        "@@ -8,3 +8,5 @@",
+        " ## Retries",
+        " ",
+        "-The client retries three times.",
+        "+The client retries three times with exponential backoff, starting at 200ms",
+        "+and capped at 2s. A request that fails with a 4xx other than 429 is not",
+        "+retried, since retrying a rejected request wastes the budget."
+      ]
+    }
+  ],
+  "expected": []
+}

@@ -1,0 +1,26 @@
+{
+  "id": "clean-005",
+  "kind": "clean",
+  "category": "none",
+  "description": "A per-row query is replaced with one batched call. Resembles n-plus-one and is the fix for one.",
+  "files": [
+    {
+      "path": "src/api/team-list.ts",
+      "patch": [
+        "@@ -16,9 +16,6 @@",
+        " export async function teamList(db: Db, orgId: string) {",
+        "   const teams = await db.teams.byOrg(orgId);",
+        " ",
+        "-  const out = [];",
+        "-  for (const team of teams) {",
+        "-    out.push({ ...team, lead: await db.users.find(team.leadId) });",
+        "-  }",
+        "-  return out;",
+        "+  const leads = await db.users.byIds(teams.map((team) => team.leadId));",
+        "+  return teams.map((team) => ({ ...team, lead: leads.get(team.leadId) }));",
+        " }"
+      ]
+    }
+  ],
+  "expected": []
+}

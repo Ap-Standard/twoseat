@@ -1,0 +1,36 @@
+{
+  "id": "migration-003",
+  "kind": "defect",
+  "category": "unsafe-migration",
+  "description": "A column is dropped in the same release that still reads it, so the old code breaks mid-deploy.",
+  "files": [
+    {
+      "path": "migrations/0044_drop_legacy.sql",
+      "patch": [
+        "@@ -1,0 +1,1 @@",
+        "+ALTER TABLE customers DROP COLUMN legacy_ref;"
+      ]
+    },
+    {
+      "path": "src/repo/customers.ts",
+      "patch": [
+        "@@ -30,3 +30,7 @@",
+        " export async function findByLegacyRef(db: Db, ref: string) {",
+        "   return db.query('SELECT id FROM customers WHERE legacy_ref = $1', [ref]);",
+        " }",
+        "+",
+        "+export async function backfillLegacy(db: Db) {",
+        "+  return db.query('SELECT id, legacy_ref FROM customers WHERE legacy_ref IS NOT NULL');",
+        "+}"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "migrations/0044_drop_legacy.sql",
+      "line": 1,
+      "severity": "P1",
+      "category": "unsafe-migration"
+    }
+  ]
+}

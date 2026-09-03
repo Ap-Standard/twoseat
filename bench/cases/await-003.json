@@ -1,0 +1,32 @@
+{
+  "id": "await-003",
+  "kind": "defect",
+  "category": "missing-await",
+  "description": "An async callback inside forEach means the loop finishes before any write completes.",
+  "files": [
+    {
+      "path": "src/jobs/expire-sessions.ts",
+      "patch": [
+        "@@ -9,7 +9,7 @@",
+        " export async function expireSessions(sessions: Session[], db: Db) {",
+        "-  for (const session of sessions) {",
+        "-    await db.sessions.expire(session.id);",
+        "-  }",
+        "+  sessions.forEach(async (session) => {",
+        "+    await db.sessions.expire(session.id);",
+        "+  });",
+        " ",
+        "   return sessions.length;",
+        " }"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/jobs/expire-sessions.ts",
+      "line": 10,
+      "severity": "P1",
+      "category": "missing-await"
+    }
+  ]
+}

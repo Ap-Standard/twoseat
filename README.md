@@ -70,12 +70,28 @@ Planned, not yet built:
   visible instead of being averaged away.
 - A labeled benchmark corpus, and a scorecard regenerated from it by one command.
 
-## What the scorecard will report
+## Scorecard
 
-Planned metrics, once the corpus exists: precision, recall, and F1 per severity
-and per defect category; false-block rate; injection-resistance rate; and median
-cost and latency per review. Every figure will name the model and prompt version
-that produced it, and will be reproducible from this repository.
+The corpus is built: 48 synthetic cases, 30 with a seeded defect across seven
+classes, 10 clean, and 8 carrying a prompt injection. Every case validates
+against its own diff in CI, and the harness computes precision, recall, and F1
+per severity and per defect class, false-block rate at each confidence
+threshold, injection-resistance rate, and median cost and latency.
+
+No scores are published below yet, because publishing one means running the
+corpus against a live model and that has not happened. One command produces it:
+`npm run bench`, then `npm run scorecard`.
+
+<!-- scorecard:start -->
+
+No benchmark run has been published. Method and corpus:
+[bench/README.md](bench/README.md).
+
+<!-- scorecard:end -->
+
+Every figure will name the model, the prompt version, and the matching rule
+that produced it. Scores are only comparable within one prompt version, which
+is why the version is pinned by a fingerprint over the prompt contract.
 
 ## Not in v0.1
 

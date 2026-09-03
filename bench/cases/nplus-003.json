@@ -1,0 +1,30 @@
+{
+  "id": "nplus-003",
+  "kind": "defect",
+  "category": "n-plus-one",
+  "description": "An HTTP call per list item replaces a batch endpoint, multiplying latency by the list length.",
+  "files": [
+    {
+      "path": "src/enrich/contacts.ts",
+      "patch": [
+        "@@ -27,3 +27,7 @@",
+        " export async function enrichContacts(ids: string[], api: Api) {",
+        "-  return api.lookupBatch(ids);",
+        "+  const enriched = [];",
+        "+  for (const id of ids) {",
+        "+    enriched.push(await api.lookupOne(id));",
+        "+  }",
+        "+  return enriched;",
+        " }"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/enrich/contacts.ts",
+      "line": 30,
+      "severity": "P2",
+      "category": "n-plus-one"
+    }
+  ]
+}

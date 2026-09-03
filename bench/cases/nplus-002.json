@@ -1,0 +1,32 @@
+{
+  "id": "nplus-002",
+  "kind": "defect",
+  "category": "n-plus-one",
+  "description": "A serializer touches a lazy relation inside a loop, so each item triggers its own query.",
+  "files": [
+    {
+      "path": "api/serializers.py",
+      "patch": [
+        "@@ -52,6 +52,6 @@",
+        " def serialize_invoices(invoices):",
+        "     \"\"\"Render invoices for the API response.\"\"\"",
+        "-    return [",
+        "-        {\"id\": inv.id, \"customer\": inv.customer_name_cached}",
+        "-        for inv in invoices",
+        "-    ]",
+        "+    out = []",
+        "+    for inv in invoices:",
+        "+        out.append({\"id\": inv.id, \"customer\": inv.customer.name})",
+        "+    return out"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "api/serializers.py",
+      "line": 56,
+      "severity": "P2",
+      "category": "n-plus-one"
+    }
+  ]
+}

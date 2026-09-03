@@ -1,0 +1,28 @@
+{
+  "id": "clean-002",
+  "kind": "clean",
+  "category": "none",
+  "description": "A write is awaited and its failure handled. Resembles missing-await and is not.",
+  "files": [
+    {
+      "path": "src/api/update-profile.ts",
+      "patch": [
+        "@@ -14,6 +14,11 @@",
+        " export async function updateProfile(req: Request, res: Response, db: Db) {",
+        "   const patch = parseProfilePatch(req.body);",
+        " ",
+        "-  await db.profiles.update(req.user.id, patch);",
+        "-  res.status(204).end();",
+        "+  try {",
+        "+    await db.profiles.update(req.user.id, patch);",
+        "+  } catch (error) {",
+        "+    return res.status(502).json({ error: describe(error) });",
+        "+  }",
+        "+",
+        "+  return res.status(204).end();",
+        " }"
+      ]
+    }
+  ],
+  "expected": []
+}

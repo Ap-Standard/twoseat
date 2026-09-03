@@ -131,7 +131,7 @@ test('the prompt contract is pinned to the prompt version', () => {
   // instructions or the findings tool schema: bump PROMPT_VERSION and update
   // this fingerprint in the same commit, because scores are only comparable
   // within one prompt version.
-  expect(promptContractFingerprint()).toBe('953c83c274b1ffe1');
+  expect(promptContractFingerprint()).toBe('262321adcfff2863');
 });
 
 test('the fingerprint covers the tool schema, not the instructions alone', () => {

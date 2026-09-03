@@ -13,8 +13,11 @@
  */
 import { isAnchoredInDiff, type AnchorableFile } from './anchors.js';
 import {
+  CATEGORIES,
   CONFIDENCES,
+  FALLBACK_CATEGORY,
   SEVERITIES,
+  type Category,
   type Confidence,
   type Finding,
   type Severity,
@@ -162,6 +165,14 @@ export function parseSeatFindings(raw: unknown, context: ParseContext): ParsedFi
     // Self-delimiting, so a path ending in the separator cannot collide
     // with the next field. A literal separator byte here once made this
     // whole file binary to git, which cost it its patch and its review.
+    // An unrecognized or absent category costs the classification, never the
+    // finding. A correctly located defect is worth keeping under `other`.
+    const rawCategory = readString(source, 'category');
+    const category: Category =
+      rawCategory !== null && CATEGORIES.includes(rawCategory as Category)
+        ? (rawCategory as Category)
+        : FALLBACK_CATEGORY;
+
     const key = JSON.stringify([path, line, title]);
     if (seen.has(key)) {
       rejected.push({ reason: 'duplicate', path });
@@ -181,6 +192,7 @@ export function parseSeatFindings(raw: unknown, context: ParseContext): ParsedFi
       line,
       severity: severity as Severity,
       confidence: confidence as Confidence,
+      category,
       title: truncate(title, MAX_TITLE_CHARS),
       detail: truncate(detail, MAX_DETAIL_CHARS),
     });

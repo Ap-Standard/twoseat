@@ -1,0 +1,30 @@
+{
+  "id": "await-001",
+  "kind": "defect",
+  "category": "missing-await",
+  "description": "A database write is not awaited, so a failure is lost and the response may precede the write.",
+  "files": [
+    {
+      "path": "src/api/create-order.ts",
+      "patch": [
+        "@@ -15,7 +15,7 @@",
+        " export async function createOrder(req: Request, res: Response, db: Db) {",
+        "   const order = buildOrder(req.body);",
+        " ",
+        "-  await db.orders.insert(order);",
+        "+  db.orders.insert(order);",
+        " ",
+        "   res.status(201).json({ id: order.id });",
+        " }"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/api/create-order.ts",
+      "line": 18,
+      "severity": "P1",
+      "category": "missing-await"
+    }
+  ]
+}

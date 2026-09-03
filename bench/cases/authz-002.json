@@ -1,0 +1,29 @@
+{
+  "id": "authz-002",
+  "kind": "defect",
+  "category": "authz-bypass",
+  "description": "A role check moves to the client, leaving the endpoint open to a direct call.",
+  "files": [
+    {
+      "path": "src/api/admin-export.ts",
+      "patch": [
+        "@@ -6,6 +6,4 @@",
+        " export async function adminExport(req: Request, db: Db) {",
+        "-  if (req.user.role !== 'admin') {",
+        "-    throw new ForbiddenError();",
+        "-  }",
+        "+  // The Export button is only rendered for admins in the console.",
+        "   return db.reports.exportAll();",
+        " }"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/api/admin-export.ts",
+      "line": 8,
+      "severity": "P1",
+      "category": "authz-bypass"
+    }
+  ]
+}
