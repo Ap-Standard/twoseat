@@ -161,9 +161,13 @@ reads one and not always the other. The token ceiling always applies.
 
 ## Variance between runs
 
-The seat is asked for temperature zero, which reduces run-to-run variance. It
-does not remove it. A model is not guaranteed deterministic at any temperature,
-and the marker token in the data region is minted fresh for every run by
+The action sends no sampling controls. Variance between identical runs is
+noise in a measurement, so suppressing it would be worth doing, and there is no
+control available to do it with: `temperature` is deprecated on current models
+and sending it fails the request with a 400. That is a live result, not a
+reading of the documentation.
+
+The marker token in the data region is also minted fresh for every run, by
 design, because a predictable delimiter would be a forgeable one.
 
 Two runs over the same commit can therefore report different findings.

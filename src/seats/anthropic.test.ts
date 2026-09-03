@@ -113,9 +113,9 @@ test('caps how much of an error response it repeats into the run log', async () 
   expect(outcome.kind === 'failed' && outcome.message.length).toBeLessThan(400);
 });
 
-test('asks for the least run-to-run variance the API offers', async () => {
-  // A review is a measurement, so variance between identical runs is noise.
-  // This reduces it and does not eliminate it.
+test('sends no sampling controls, which current models reject', async () => {
+  // Guard test, from a live 400. Sending `temperature` to claude-sonnet-5
+  // fails the request outright, so the request body must stay free of it.
   let sent: Record<string, unknown> = {};
   const fetchImpl = ((_url: string, init: RequestInit) => {
     sent = JSON.parse(init.body as string) as Record<string, unknown>;
@@ -124,7 +124,9 @@ test('asks for the least run-to-run variance the API offers', async () => {
 
   await callSeat(request, fetchImpl);
 
-  expect(sent['temperature']).toBe(0);
+  expect(sent).not.toHaveProperty('temperature');
+  expect(sent).not.toHaveProperty('top_p');
+  expect(sent).not.toHaveProperty('top_k');
 });
 
 test('redacts a key an error body split with an invisible character', async () => {

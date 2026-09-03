@@ -119,11 +119,11 @@ export async function callSeat(
     // action has to interpret, and interpreting a reply built from a hostile
     // diff is the thing this design avoids.
     tool_choice: { type: 'tool', name: FINDINGS_TOOL_NAME },
-    // A review is a measurement, so run-to-run variance is noise. This reduces
-    // it. It does not eliminate it: a model is not guaranteed deterministic at
-    // any temperature, which is why a score is only ever comparable within one
-    // prompt version and over a fixed corpus.
-    temperature: 0,
+    // No sampling controls are sent. A review is a measurement, so run-to-run
+    // variance is noise worth suppressing, but `temperature` is deprecated on
+    // current models and sending it returns a 400. There is no variance knob to
+    // reach for, so comparability comes from pinning the prompt version and
+    // fixing the corpus instead. See docs/findings.md.
     messages: [{ role: 'user', content: request.data }],
   };
 
