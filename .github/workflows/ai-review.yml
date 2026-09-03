@@ -20,8 +20,11 @@ jobs:
           primary-model: claude-sonnet-5
           # Rates are this workflow's claim, not the action's. The action holds
           # no price table, so a stale figure here is a one-line fix and cannot
-          # reach anyone who has not set it. Check them against the vendor's
-          # published pricing before trusting a cost figure in a comment.
+          # reach anyone who has not set it.
+          #
+          # Checked against Anthropic's published pricing for claude-sonnet-5
+          # on 2026-09-03. Nothing re-checks it, so re-verify when the model
+          # changes or when a cost figure starts mattering to someone.
           input-price-per-mtok: '3.00'
           output-price-per-mtok: '15.00'
           blocking-disabled: ${{ vars.TWOSEAT_BLOCKING_DISABLED }}

@@ -180,12 +180,17 @@ available: `temperature` is deprecated on current models and sending it fails
 the request. Small differences between two reports are noise until the corpus is
 run repeatedly with `--runs`.
 
-**The cost figure is arithmetic on rates this repository was told, not rates
-it verified.** Token counts come from the API's own usage report, so the
-multiplication is sound and the price is an input. The published run used
-$3.00 in and $15.00 out per million tokens. Nothing here checks that against
-the vendor's current pricing, and the report names the rates it used so a
-reader can.
+**The cost figure carries a date, because a price is an input and inputs go
+stale.** Token counts come from the API's own usage report, so the arithmetic
+is sound. The rate is supplied to the run: $3.00 in and $15.00 out per million
+tokens, checked against Anthropic's published pricing for `claude-sonnet-5` on
+2026-09-03.
+
+Nothing re-checks it after that, which is deliberate. A price table committed
+to this repository would go stale without failing anything, and an unmethodical
+number in a public comment is the one thing this project is built to avoid. So
+the rate lives in the workflow that supplies it, every report names the rate it
+used, and the date above is how far the verification goes.
 
 **Roughly 2-4% of calls come back unreadable, and those cases are excluded.**
 Two runs of this corpus lost 2 and 1 cases respectively to a reply the parser
