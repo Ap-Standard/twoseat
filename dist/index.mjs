@@ -25147,11 +25147,15 @@ async function run() {
   const outcome = await runReview(config, plan, prompt);
   annotate(outcome);
   const decision = decidePolicy(outcome, config);
-  await upsertSummaryComment(
-    octokit,
-    { owner, repo, number },
-    renderReviewBody({ config, plan, promptVersion: prompt.promptVersion, decision, outcome })
-  );
+  try {
+    await upsertSummaryComment(
+      octokit,
+      { owner, repo, number },
+      renderReviewBody({ config, plan, promptVersion: prompt.promptVersion, decision, outcome })
+    );
+  } catch (error2) {
+    warning(`Could not post the summary comment: ${describeError2(error2)}.`);
+  }
   const labelWarning = await syncUnreviewedLabel(
     labelClient(octokit, { owner, repo, number }),
     wantsUnreviewedLabel(decision.decision)

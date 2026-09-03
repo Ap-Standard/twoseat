@@ -175,11 +175,20 @@ async function run(): Promise<void> {
   // so they cannot report different verdicts on the same run.
   const decision = decidePolicy(outcome, config);
 
-  await upsertSummaryComment(
-    octokit,
-    { owner, repo, number },
-    renderReviewBody({ config, plan, promptVersion: prompt.promptVersion, decision, outcome }),
-  );
+  // Isolated, because the three ways this run publishes its outcome must not
+  // depend on each other. A failed comment call would otherwise reach the
+  // top-level catch and skip both the label and the outputs, which would leave
+  // a reviewed pull request wearing a stale unreviewed label, or leave a run
+  // that never reviewed with nothing on the pull request saying so.
+  try {
+    await upsertSummaryComment(
+      octokit,
+      { owner, repo, number },
+      renderReviewBody({ config, plan, promptVersion: prompt.promptVersion, decision, outcome }),
+    );
+  } catch (error: unknown) {
+    core.warning(`Could not post the summary comment: ${describeError(error)}.`);
+  }
 
   const labelWarning = await syncUnreviewedLabel(
     labelClient(octokit, { owner, repo, number }),
