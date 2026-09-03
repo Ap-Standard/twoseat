@@ -1,0 +1,31 @@
+{
+  "id": "toctou-001",
+  "kind": "defect",
+  "category": "toctou",
+  "description": "The file is checked for existence and then created, so two callers can both pass the check.",
+  "files": [
+    {
+      "path": "src/storage/reserve.ts",
+      "patch": [
+        "@@ -11,5 +11,6 @@",
+        " export async function reserveSlot(fs: Fs, path: string, body: string) {",
+        "-  const handle = await fs.open(path, 'wx');",
+        "-  await handle.write(body);",
+        "-  await handle.close();",
+        "+  if (await fs.exists(path)) {",
+        "+    throw new SlotTakenError(path);",
+        "+  }",
+        "+  await fs.writeFile(path, body);",
+        " }"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/storage/reserve.ts",
+      "line": 12,
+      "severity": "P1",
+      "category": "toctou"
+    }
+  ]
+}

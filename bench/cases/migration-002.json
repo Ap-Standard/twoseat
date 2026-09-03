@@ -1,0 +1,24 @@
+{
+  "id": "migration-002",
+  "kind": "defect",
+  "category": "unsafe-migration",
+  "description": "An index is created without CONCURRENTLY, taking a write lock for the duration of the build.",
+  "files": [
+    {
+      "path": "migrations/0043_index_events.sql",
+      "patch": [
+        "@@ -1,0 +1,2 @@",
+        "+-- Speed up the account timeline query.",
+        "+CREATE INDEX idx_events_account_created ON events (account_id, created_at DESC);"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "migrations/0043_index_events.sql",
+      "line": 2,
+      "severity": "P1",
+      "category": "unsafe-migration"
+    }
+  ]
+}

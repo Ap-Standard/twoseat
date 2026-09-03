@@ -1,0 +1,28 @@
+{
+  "id": "toctou-003",
+  "kind": "defect",
+  "category": "toctou",
+  "description": "A counter is read then written, replacing an atomic increment, so updates are lost under concurrency.",
+  "files": [
+    {
+      "path": "src/metrics/counter.py",
+      "patch": [
+        "@@ -14,3 +14,5 @@",
+        " def bump(redis, key):",
+        "     \"\"\"Increase a counter by one.\"\"\"",
+        "-    return redis.incr(key)",
+        "+    current = int(redis.get(key) or 0)",
+        "+    redis.set(key, current + 1)",
+        "+    return current + 1"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/metrics/counter.py",
+      "line": 16,
+      "severity": "P1",
+      "category": "toctou"
+    }
+  ]
+}

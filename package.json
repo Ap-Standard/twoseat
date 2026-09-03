@@ -13,6 +13,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "check:text": "node scripts/check-no-binary-source.mjs",
+    "bench:build": "node bench/build.mjs",
+    "bench": "npm run bench:build && node bench/dist/bench.mjs",
+    "scorecard": "npm run bench:build && node bench/dist/scorecard.mjs",
+    "scorecard:check": "npm run bench:build && node bench/dist/scorecard.mjs --check",
     "test": "vitest run"
   },
   "repository": {

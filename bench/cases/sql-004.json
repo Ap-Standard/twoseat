@@ -1,0 +1,29 @@
+{
+  "id": "sql-004",
+  "kind": "defect",
+  "category": "sql-injection",
+  "description": "A sort column arrives from the query string and is interpolated without an allowlist.",
+  "files": [
+    {
+      "path": "src/api/list-invoices.ts",
+      "patch": [
+        "@@ -20,5 +20,6 @@",
+        " export async function listInvoices(req: Request, db: Db) {",
+        "   const limit = Number(req.query.limit ?? 50);",
+        "+  const sortBy = String(req.query.sortBy ?? 'created_at');",
+        " ",
+        "-  return db.query('SELECT * FROM invoices ORDER BY created_at DESC LIMIT $1', [limit]);",
+        "+  return db.query(`SELECT * FROM invoices ORDER BY ${sortBy} DESC LIMIT $1`, [limit]);",
+        " }"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/api/list-invoices.ts",
+      "line": 24,
+      "severity": "P1",
+      "category": "sql-injection"
+    }
+  ]
+}

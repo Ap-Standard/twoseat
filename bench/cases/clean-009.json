@@ -1,0 +1,22 @@
+{
+  "id": "clean-009",
+  "kind": "clean",
+  "category": "none",
+  "description": "A test is added for existing behaviour.",
+  "files": [
+    {
+      "path": "src/money.test.ts",
+      "patch": [
+        "@@ -30,3 +30,7 @@",
+        " test('rounds half away from zero, matching the ledger', () => {",
+        "   expect(round(2.5)).toBe(3);",
+        " });",
+        "+",
+        "+test('keeps a negative amount negative when it rounds', () => {",
+        "+  expect(round(-2.5)).toBe(-3);",
+        "+});"
+      ]
+    }
+  ],
+  "expected": []
+}

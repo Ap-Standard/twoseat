@@ -1,0 +1,31 @@
+{
+  "id": "sql-001",
+  "kind": "defect",
+  "category": "sql-injection",
+  "description": "A user-supplied id is interpolated into a template literal query.",
+  "files": [
+    {
+      "path": "src/repo/users.ts",
+      "patch": [
+        "@@ -12,8 +12,8 @@",
+        " export class UserRepo {",
+        "   constructor(private readonly db: Db) {}",
+        " ",
+        "   async findById(id: string): Promise<User | null> {",
+        "-    const rows = await this.db.query('SELECT * FROM users WHERE id = $1', [id]);",
+        "+    const rows = await this.db.query(`SELECT * FROM users WHERE id = ${id}`);",
+        "     return rows[0] ?? null;",
+        "   }",
+        " }"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/repo/users.ts",
+      "line": 16,
+      "severity": "P1",
+      "category": "sql-injection"
+    }
+  ]
+}

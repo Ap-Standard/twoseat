@@ -1,0 +1,26 @@
+{
+  "id": "clean-007",
+  "kind": "clean",
+  "category": "none",
+  "description": "A new handler with the same ownership check its siblings use. Resembles authz-bypass and is not.",
+  "files": [
+    {
+      "path": "src/api/reports.ts",
+      "patch": [
+        "@@ -24,5 +24,11 @@",
+        " export async function getReport(req: Request, db: Db) {",
+        "   const report = await db.reports.find(req.params.id);",
+        "   assertOwned(report, req.user);",
+        "   return report;",
+        " }",
+        "+",
+        "+export async function getReportRows(req: Request, db: Db) {",
+        "+  const report = await db.reports.find(req.params.id);",
+        "+  assertOwned(report, req.user);",
+        "+  return db.reports.rows(report.id);",
+        "+}"
+      ]
+    }
+  ],
+  "expected": []
+}

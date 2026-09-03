@@ -1,0 +1,29 @@
+{
+  "id": "await-002",
+  "kind": "defect",
+  "category": "missing-await",
+  "description": "Promise.all is not awaited, so the settlement of the batch is never observed.",
+  "files": [
+    {
+      "path": "src/jobs/sync-accounts.ts",
+      "patch": [
+        "@@ -22,6 +22,6 @@",
+        " export async function syncAccounts(ids: string[], api: Api) {",
+        "   const work = ids.map((id) => api.refreshAccount(id));",
+        " ",
+        "-  const results = await Promise.all(work);",
+        "+  const results = Promise.all(work);",
+        "   return summarize(results);",
+        " }"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/jobs/sync-accounts.ts",
+      "line": 25,
+      "severity": "P1",
+      "category": "missing-await"
+    }
+  ]
+}

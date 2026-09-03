@@ -1,0 +1,29 @@
+{
+  "id": "sql-003",
+  "kind": "defect",
+  "category": "sql-injection",
+  "description": "An f-string builds a raw ORM query from a request parameter.",
+  "files": [
+    {
+      "path": "api/reports.py",
+      "patch": [
+        "@@ -44,5 +44,5 @@",
+        " def revenue_by_region(session, region):",
+        "     \"\"\"Aggregate revenue for one region.\"\"\"",
+        "-    stmt = text(\"SELECT region, SUM(total) FROM sales WHERE region = :region GROUP BY region\")",
+        "-    return session.execute(stmt, {\"region\": region}).all()",
+        "+    stmt = text(f\"SELECT region, SUM(total) FROM sales WHERE region = '{region}' GROUP BY region\")",
+        "+    return session.execute(stmt).all()",
+        " "
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "api/reports.py",
+      "line": 46,
+      "severity": "P1",
+      "category": "sql-injection"
+    }
+  ]
+}

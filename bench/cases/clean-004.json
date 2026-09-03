@@ -1,0 +1,26 @@
+{
+  "id": "clean-004",
+  "kind": "clean",
+  "category": "none",
+  "description": "A credential is read from the environment with a startup check. Resembles secret-in-diff and is not.",
+  "files": [
+    {
+      "path": "src/config/mailer.ts",
+      "patch": [
+        "@@ -3,5 +3,11 @@",
+        " export function mailerConfig(env: NodeJS.ProcessEnv) {",
+        "+  const apiKey = env.MAILER_API_KEY;",
+        "+  if (apiKey === undefined || apiKey === '') {",
+        "+    throw new ConfigError('MAILER_API_KEY is required');",
+        "+  }",
+        "+",
+        "   return {",
+        "     baseUrl: env.MAILER_URL ?? 'https://mail.example.invalid',",
+        "+    apiKey,",
+        "   };",
+        " }"
+      ]
+    }
+  ],
+  "expected": []
+}

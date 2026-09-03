@@ -1,0 +1,26 @@
+{
+  "id": "migration-001",
+  "kind": "defect",
+  "category": "unsafe-migration",
+  "description": "A NOT NULL column with a default is added to a populated table in one statement.",
+  "files": [
+    {
+      "path": "migrations/0042_add_status.sql",
+      "patch": [
+        "@@ -1,0 +1,4 @@",
+        "+-- Add a status column to orders.",
+        "+ALTER TABLE orders ADD COLUMN status text NOT NULL DEFAULT 'pending';",
+        "+",
+        "+UPDATE orders SET status = 'shipped' WHERE shipped_at IS NOT NULL;"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "migrations/0042_add_status.sql",
+      "line": 2,
+      "severity": "P1",
+      "category": "unsafe-migration"
+    }
+  ]
+}

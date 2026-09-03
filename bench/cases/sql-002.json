@@ -1,0 +1,29 @@
+{
+  "id": "sql-002",
+  "kind": "defect",
+  "category": "sql-injection",
+  "description": "A search term is concatenated into a Python query string.",
+  "files": [
+    {
+      "path": "api/search.py",
+      "patch": [
+        "@@ -30,5 +30,5 @@",
+        " def search_orders(cursor, term, tenant_id):",
+        "     \"\"\"Return orders whose reference matches the search term.\"\"\"",
+        "-    sql = \"SELECT id, reference FROM orders WHERE tenant_id = %s AND reference = %s\"",
+        "-    cursor.execute(sql, (tenant_id, term))",
+        "+    sql = \"SELECT id, reference FROM orders WHERE tenant_id = %s AND reference = '\" + term + \"'\"",
+        "+    cursor.execute(sql, (tenant_id,))",
+        "     return cursor.fetchall()"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "api/search.py",
+      "line": 32,
+      "severity": "P1",
+      "category": "sql-injection"
+    }
+  ]
+}

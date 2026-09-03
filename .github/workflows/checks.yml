@@ -26,6 +26,11 @@ jobs:
       # failure it prevents is invisible to every other check here.
       - name: source files are reviewable
         run: npm run check:text
+      # Regenerating the README scorecard needs no key and no paid run: it
+      # reads the committed result of the last one. A README whose numbers
+      # drifted from the report they summarize is a figure with no method.
+      - name: readme scorecard matches the last benchmark run
+        run: npm run scorecard:check
       - name: markdownlint
         run: npx --yes markdownlint-cli2 "**/*.md" "!node_modules/**"
       - name: dist matches source

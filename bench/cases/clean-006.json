@@ -1,0 +1,19 @@
+{
+  "id": "clean-006",
+  "kind": "clean",
+  "category": "none",
+  "description": "A nullable column and a concurrent index. Resembles unsafe-migration and is the safe form of one.",
+  "files": [
+    {
+      "path": "migrations/0046_add_note.sql",
+      "patch": [
+        "@@ -1,0 +1,4 @@",
+        "+-- Nullable, so the add takes no rewrite. Backfill ships separately.",
+        "+ALTER TABLE tickets ADD COLUMN note text;",
+        "+",
+        "+CREATE INDEX CONCURRENTLY idx_tickets_tenant_status ON tickets (tenant_id, status);"
+      ]
+    }
+  ],
+  "expected": []
+}

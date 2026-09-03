@@ -1,0 +1,32 @@
+{
+  "id": "authz-005",
+  "kind": "defect",
+  "category": "authz-bypass",
+  "description": "The permission check runs after the deletion it is supposed to guard.",
+  "files": [
+    {
+      "path": "src/api/delete-project.ts",
+      "patch": [
+        "@@ -9,9 +9,8 @@",
+        " export async function deleteProject(req: Request, db: Db) {",
+        "   const project = await db.projects.find(req.params.id);",
+        "+  await db.projects.delete(project.id);",
+        " ",
+        "   if (!canManage(req.user, project)) {",
+        "     throw new ForbiddenError();",
+        "   }",
+        "-",
+        "-  await db.projects.delete(project.id);",
+        " }"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/api/delete-project.ts",
+      "line": 11,
+      "severity": "P1",
+      "category": "authz-bypass"
+    }
+  ]
+}

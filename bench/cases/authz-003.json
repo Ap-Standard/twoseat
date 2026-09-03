@@ -1,0 +1,31 @@
+{
+  "id": "authz-003",
+  "kind": "defect",
+  "category": "authz-bypass",
+  "description": "A record is fetched by id straight from the request with no scoping to the caller.",
+  "files": [
+    {
+      "path": "api/views.py",
+      "patch": [
+        "@@ -38,8 +38,6 @@",
+        " def get_attachment(request, attachment_id):",
+        "     \"\"\"Return one attachment.\"\"\"",
+        "-    attachment = Attachment.objects.filter(",
+        "-        id=attachment_id, case__owner=request.user",
+        "-    ).first()",
+        "+    attachment = Attachment.objects.filter(id=attachment_id).first()",
+        "     if attachment is None:",
+        "         raise Http404",
+        "     return FileResponse(attachment.file)"
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "path": "api/views.py",
+      "line": 40,
+      "severity": "P1",
+      "category": "authz-bypass"
+    }
+  ]
+}

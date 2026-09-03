@@ -9,6 +9,8 @@ export default tseslint.config(
       'node_modules/**',
       'coverage/**',
       'build.mjs',
+      'bench/build.mjs',
+      'bench/dist/**',
       'eslint.config.js',
       'scripts/**',
     ],

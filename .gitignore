@@ -4,3 +4,7 @@ coverage/
 .env
 .env.*
 .DS_Store
+
+# Transient bundle for the benchmark command-line tools. Unlike dist/,
+# nothing consumes this but a developer running npm run bench.
+bench/dist/
