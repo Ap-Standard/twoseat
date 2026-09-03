@@ -1,0 +1,45 @@
+name: twoseat
+description: >-
+  A measured AI code-review gate. Comments on pull requests, publishes its own
+  benchmark, and never blocks on its own malfunction.
+author: Arthur Paula
+
+branding:
+  icon: git-pull-request
+  color: purple
+
+inputs:
+  github-token:
+    description: Token used to read the pull request diff and maintain the summary comment.
+    required: false
+    default: ${{ github.token }}
+  primary-model:
+    description: Model id for the primary review seat.
+    required: true
+  second-seat-model:
+    description: >-
+      Model id for the optional second seat. Leave empty for a single-seat run.
+    required: false
+    default: ''
+  token-ceiling:
+    description: >-
+      Maximum prompt tokens one pull request review may consume. Diffs larger
+      than the resulting budget are truncated by the documented strategy in
+      docs/diff-budget.md.
+    required: false
+    default: '120000'
+  cost-ceiling-usd:
+    description: Maximum estimated spend for one pull request review, in US dollars.
+    required: false
+    default: '0.50'
+  blocking-disabled:
+    description: >-
+      Kill switch. The calling workflow passes a repository variable here, named
+      TWOSEAT_BLOCKING_DISABLED by convention. Any recognized true value disables
+      blocking, and so does any value the action cannot interpret.
+    required: false
+    default: ''
+
+runs:
+  using: node20
+  main: dist/index.mjs
