@@ -7,7 +7,11 @@
 import { build } from 'esbuild';
 
 await build({
-  entryPoints: ['bench/src/cli/bench.ts', 'bench/src/cli/scorecard.ts'],
+  entryPoints: [
+    'bench/src/cli/bench.ts',
+    'bench/src/cli/scorecard.ts',
+    'bench/src/cli/rescore.ts',
+  ],
   outdir: 'bench/dist',
   outExtension: { '.js': '.mjs' },
   bundle: true,

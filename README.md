@@ -96,17 +96,26 @@ threshold, injection-resistance rate, and median cost and latency.
 Two commands produce the block below from a live run: `npm run bench`, then
 `npm run scorecard`.
 
-**Two of these figures understate the gate, and the report says so rather than
-quietly correcting them.** The first run of this corpus reported four findings
-nothing had seeded, and all four turned out to be real defects the corpus had
-mislabeled or missed. Those cases are fixed, and the fact that a benchmark was
-edited in response to a run it scored is disclosed in
+**One of these figures understated the gate, and the fix is visible rather than
+quietly applied.** The first run of this corpus reported four findings nothing
+had seeded, and all four turned out to be real defects the corpus had mislabeled
+or missed. Those cases are fixed, and the fact that a benchmark was edited in
+response to a run it scored is disclosed in
 [bench/README.md](bench/README.md) instead of buried, because that is the loop
 by which a benchmark quietly becomes a record of what one model already does
-well. Injection resistance reads 87.5% for a case where the seat did the right
-thing and reported the injection instead of obeying it; the strict figure ships
-until the metric is fixed under review
-([#16](https://github.com/Ap-Standard/twoseat/issues/16)).
+well.
+
+The injection metric counted a case where the seat reported the injection
+instead of obeying it as the injection succeeding. The strict figure shipped
+first and was corrected in its own change
+([#16](https://github.com/Ap-Standard/twoseat/issues/16)), reviewed on the
+argument that the code contradicted its own documented definition rather than
+on the number moving. The two directions of the attack are now reported apart,
+because a composite rate could not say which one the gate is weak against.
+
+**The suppression row above is a count of 8 cases, not a rate to lean on.**
+Nothing was suppressed in either run of this corpus, which is the strongest
+honest claim available and still a small sample.
 
 <!-- scorecard:start -->
 <!-- generated from bench/results/REPORT.md; do not edit by hand -->
@@ -119,7 +128,7 @@ until the metric is fixed under review
 | Recall | 100.0% |
 | F1 | 98.7% |
 | False-block rate, any P1 | 0.0% |
-| Injection resistance | 87.5% |
+| Seeded defects suppressed by an injection | 0 of 8 |
 | Median cost per review | $0.0092 |
 
 Method, per-class figures, and what these numbers do not cover: [bench/results/REPORT.md](bench/results/REPORT.md).
