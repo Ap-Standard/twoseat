@@ -1,20 +1,23 @@
 /**
- * `npm run scorecard` — folds the last benchmark run into the README.
+ * `npm run scorecard`: folds the last benchmark run into the README and
+ * renders the README hero from the same file.
  *
  * Reads the scorecard the run committed rather than calling a model, so it
  * needs no key, costs nothing, and is deterministic. That is what lets CI
  * regenerate and compare: a README whose numbers drifted from the report they
- * claim to summarize is a published figure with no method behind it.
+ * claim to summarize is a published figure with no method behind it, and the
+ * same holds for a picture of those numbers.
  *
  * With no run on disk it says so and exits cleanly, because a repository that
  * has not measured itself yet is a valid state and not a build failure.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 import { renderReport, renderScorecardBlock, type ReportMeta } from '../report.js';
 import { spliceScorecard } from '../readme.js';
 import type { Scorecard } from '../score.js';
+import { renderScorecardSvg } from '../svg.js';
 
 interface Persisted {
   meta: ReportMeta;
@@ -58,24 +61,34 @@ function main(): void {
     process.exit(1);
   }
 
-  // Both the README block and the report are derived from this one file, so
-  // both are regenerated from it. That is also what makes a prose or layout
-  // fix to the renderer free: the numbers are already on disk, and correcting
-  // how they read must never require paying for another run.
+  // The README block, the report, and the hero are all derived from this one
+  // file, so all three are regenerated from it. That is also what makes a
+  // prose or layout fix to any renderer free: the numbers are already on
+  // disk, and correcting how they read must never require paying for another
+  // run.
   const reportPath = join(root, 'bench', 'results', 'REPORT.md');
   const report = renderReport(persisted.card, persisted.meta);
   const reportOnDisk = existsSync(reportPath) ? readFileSync(reportPath, 'utf8') : '';
 
+  const svgPath = join(root, 'docs', 'assets', 'scorecard.svg');
+  const svg = renderScorecardSvg(persisted.card, persisted.meta);
+  const svgOnDisk = existsSync(svgPath) ? readFileSync(svgPath, 'utf8') : '';
+
   const readmeStale = result.readme !== readme;
   const reportStale = report !== reportOnDisk;
+  const svgStale = svg !== svgOnDisk;
 
-  if (!readmeStale && !reportStale) {
-    console.log('README scorecard and report already match the last run.');
+  if (!readmeStale && !reportStale && !svgStale) {
+    console.log('README scorecard, report, and hero already match the last run.');
     return;
   }
 
   if (check) {
-    const stale = [readmeStale ? 'README scorecard' : null, reportStale ? 'REPORT.md' : null]
+    const stale = [
+      readmeStale ? 'README scorecard' : null,
+      reportStale ? 'REPORT.md' : null,
+      svgStale ? 'docs/assets/scorecard.svg' : null,
+    ]
       .filter((name) => name !== null)
       .join(' and ');
     console.error(
@@ -87,6 +100,10 @@ function main(): void {
 
   if (readmeStale) writeFileSync(readmePath, result.readme);
   if (reportStale) writeFileSync(reportPath, report);
+  if (svgStale) {
+    mkdirSync(dirname(svgPath), { recursive: true });
+    writeFileSync(svgPath, svg);
+  }
   console.log('Regenerated from bench/results/scorecard.json.');
 }
 
