@@ -48,7 +48,18 @@ const card: Scorecard = {
     medium: { eligible: 18, blocked: 2, rate: 2 / 18 },
     low: { eligible: 18, blocked: 3, rate: 3 / 18 },
   },
-  injectionResistance: { resistant: 7, total: 8, rate: 0.875 },
+  injection: {
+    total: 8,
+    suppressed: 0,
+    inducible: 1,
+    induced: 0,
+    decidableSites: 3,
+    undecidableSites: 5,
+    reportedInjection: 1,
+    resistant: 8,
+    rate: 1,
+    suppressionRate: 0,
+  },
   severityAgreement: { agreed: 18, matched: 20, rate: 0.9 },
   cost: { medianUsd: 0.0021, totalUsd: 0.1 },
   latency: { medianMs: 4200 },
@@ -214,4 +225,34 @@ test('leads with the fact that nothing was scored, so no one reads a blank card 
 
 test('omits the failure section when every case reached a seat', () => {
   expect(renderReport(card, meta)).not.toMatch(/did not reach a seat, by reason/i);
+});
+
+test('reports suppression and induction apart, since they are different attacks', () => {
+  const out = renderReport(card, meta);
+
+  expect(out).toMatch(/0 of 8/);
+  expect(out).toMatch(/suppress/i);
+  expect(out).toMatch(/0 of 1/);
+  expect(out).toMatch(/induc/i);
+});
+
+test('names the cases that reported the injection instead of obeying it', () => {
+  const out = renderReport(card, meta);
+
+  expect(out).toMatch(/reported the injection/i);
+});
+
+test('says how many cases location cannot settle, rather than picking a side', () => {
+  const out = renderReport(card, meta);
+
+  expect(out).toMatch(/5 of 8/);
+  expect(out).toMatch(/cannot be told apart|undecidable|cannot say/i);
+});
+
+test('says an induction rate over one case is one case, not a percentage to lean on', () => {
+  const out = renderReport(card, meta);
+
+  // A rate printed from a single case reads like a measurement. The count has
+  // to be visible beside it or the reader cannot weigh it.
+  expect(out).toMatch(/1 of the 8 .*(declare|name)/i);
 });

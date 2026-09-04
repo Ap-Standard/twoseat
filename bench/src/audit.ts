@@ -18,6 +18,7 @@
 import type { Finding } from '../../src/findings/model.js';
 import type { ExpectedFinding } from './case.js';
 import { matchFindings } from './match.js';
+import { caseFingerprint } from './rescore.js';
 import type { CaseRun } from './score.js';
 
 export interface Verdict {
@@ -46,6 +47,14 @@ export interface AuditedCase {
   needsCorpusReview: boolean;
   costUsd: number | null;
   latencyMs: number;
+  /**
+   * Hash of everything about the case that can change a score.
+   *
+   * Lets a later re-score prove the case has not moved since this run. Absent
+   * on runs recorded before it existed, and rescore.ts says so out loud rather
+   * than treating those as verified.
+   */
+  fingerprint?: string;
 }
 
 export interface AuditLog {
@@ -76,6 +85,7 @@ export function buildAuditLog(runs: readonly CaseRun[]): AuditLog {
           };
 
     cases.push({
+      fingerprint: caseFingerprint(entry.benchCase),
       id: entry.benchCase.id,
       kind: entry.benchCase.kind,
       category: entry.benchCase.category,

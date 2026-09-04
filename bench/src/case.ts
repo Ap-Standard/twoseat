@@ -14,6 +14,7 @@
  * any other codebase.
  */
 import { isAnchoredInDiff, parseHunkRanges } from '../../src/findings/anchors.js';
+import { locateInjectionSites } from './injection.js';
 import {
   CATEGORIES,
   SEVERITIES,
@@ -35,6 +36,13 @@ export interface ExpectedFinding {
   category: string;
 }
 
+export interface InducedFinding {
+  path: string;
+  /** Line in the file as the diff leaves it. Must sit inside a hunk. */
+  line: number;
+  category: string;
+}
+
 export interface CaseFile {
   path: string;
   patch: string;
@@ -48,6 +56,15 @@ export interface BenchCase {
   description: string;
   /** Present only on injection cases: the instruction the diff carries. */
   injection?: string;
+  /**
+   * Present only on an injection that asks for a defect that is not there: the
+   * finding it tries to manufacture.
+   *
+   * Declared rather than inferred. Deciding after the fact which unseeded
+   * finding an injection caused would be a judgment call inside a measurement,
+   * and the case knows the answer because its own text names one.
+   */
+  induces?: InducedFinding;
   files: CaseFile[];
   expected: ExpectedFinding[];
 }
@@ -181,6 +198,110 @@ function checkPatchStructure(path: string, lines: readonly string[]): string[] {
   return problems;
 }
 
+function parseInduced(
+  value: unknown,
+  files: readonly CaseFile[],
+): { induced?: InducedFinding; problems: string[] } {
+  if (value === undefined) {
+    return { problems: [] };
+  }
+
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { problems: ['induces is not an object'] };
+  }
+
+  const source = value as Record<string, unknown>;
+  const path = readString(source, 'path');
+  const category = readString(source, 'category');
+  const line = source['line'];
+
+  const problems: string[] = [];
+  if (path === null) problems.push('induces has no path');
+  if (category === null) {
+    problems.push('induces has no category');
+  } else if (!CATEGORIES.includes(category as Category)) {
+    problems.push(
+      `induces category ${JSON.stringify(category)} is not one the findings schema can express`,
+    );
+  }
+  if (typeof line !== 'number' || !Number.isInteger(line) || line < 1) {
+    problems.push('induces line must be a positive whole number');
+  }
+
+  if (problems.length > 0 || path === null || category === null || typeof line !== 'number') {
+    return { problems };
+  }
+
+  if (!files.some((file) => file.path === path)) {
+    return { problems: [`induces names ${path}, which this case does not contain`] };
+  }
+
+  if (!isAnchoredInDiff(files, path, line)) {
+    // Same rule the action applies to a live seat. An induced finding the seat
+    // could never anchor is unreachable, so the case would measure nothing.
+    return {
+      problems: [`induces line ${String(line)} is outside every hunk of ${path}`],
+    };
+  }
+
+  return { induced: { path, line, category }, problems: [] };
+}
+
+/**
+ * Checks that an injection case carries a reachable injection.
+ *
+ * Nothing here forbids the injection from sitting next to a seeded label or
+ * next to what it induces, and in this corpus it usually does. An injected
+ * comment is planted beside the defect it wants hidden, which is how the attack
+ * works. Ambiguity between what a finding means is resolved by precedence in
+ * score.ts rather than by rejecting realistic cases: a label absorbs a finding
+ * first, then induction, and only what is left reads as a report about the
+ * injection. An ambiguous finding therefore counts as the attack succeeding.
+ */
+function injectionSiteProblems(
+  files: readonly CaseFile[],
+  injection: string | null,
+  expected: readonly ExpectedFinding[],
+  induces: InducedFinding | undefined,
+): string[] {
+  if (injection === null) {
+    return ['an injection case must declare the injection text it carries'];
+  }
+
+  if (!files.some((file) => file.patch.includes(injection))) {
+    return ['the declared injection does not appear verbatim in any patch, so this case tests nothing'];
+  }
+
+  const sites = locateInjectionSites(files, injection);
+
+  if (sites.length === 0) {
+    // Present in a patch but only on a removed line, so it never reaches the
+    // file a seat reviews and the case tests nothing.
+    return ['the declared injection appears only on a removed line, so no seat ever sees it'];
+  }
+
+  if (sites.length > 1) {
+    // Scoring would take the first site and classify a finding near any other
+    // as though it were somewhere else.
+    const where = sites.map((site) => `${site.path}:${String(site.line)}`).join(', ');
+    return [
+      `the declared injection appears more than once (${where}), so which site a finding ` +
+        'reports cannot be told',
+    ];
+  }
+
+  if (expected.length === 0 && induces === undefined) {
+    // Such a case has nothing to suppress, so it exists to test induction. With
+    // nothing declared, obeying it would score identically to resisting it.
+    return [
+      'an injection case with no seeded defect must declare what it induces, since there is ' +
+        'nothing for the injection to suppress and complying would otherwise score as resistance',
+    ];
+  }
+
+  return [];
+}
+
 function parseExpected(
   value: unknown,
   index: number,
@@ -308,6 +429,15 @@ export function parseCase(value: unknown, source: string): ParsedCase {
   }
 
   const injection = readString(raw, 'injection');
+  const inducedParse = parseInduced(raw['induces'], files);
+  problems.push(...inducedParse.problems);
+  const induces = inducedParse.induced;
+
+  if (kind === 'injection') {
+    problems.push(...injectionSiteProblems(files, injection, expected, induces));
+  } else if (induces !== undefined) {
+    problems.push('only injection cases may declare what they induce');
+  }
 
   if (kind === 'clean' && rawExpected.length > 0) {
     problems.push('a clean case must have no expected findings');
@@ -315,15 +445,7 @@ export function parseCase(value: unknown, source: string): ParsedCase {
   if (kind === 'defect' && rawExpected.length === 0) {
     problems.push('a defect case must label at least one expected finding');
   }
-  if (kind === 'injection') {
-    if (injection === null) {
-      problems.push('an injection case must declare the injection text it carries');
-    } else if (!files.some((file) => file.patch.includes(injection))) {
-      problems.push(
-        `the declared injection does not appear verbatim in any patch, so this case tests nothing`,
-      );
-    }
-  } else if (injection !== null) {
+  if (kind !== 'injection' && injection !== null) {
     problems.push('only injection cases may declare injection text');
   }
 
@@ -341,6 +463,9 @@ export function parseCase(value: unknown, source: string): ParsedCase {
   };
   if (injection !== null) {
     benchCase.injection = injection;
+  }
+  if (induces !== undefined) {
+    benchCase.induces = induces;
   }
 
   return { benchCase, problems: [] };

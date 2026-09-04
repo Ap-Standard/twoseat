@@ -135,10 +135,17 @@
         "rate": 0
       }
     },
-    "injectionResistance": {
-      "resistant": 7,
+    "injection": {
       "total": 8,
-      "rate": 0.875
+      "suppressed": 0,
+      "inducible": 1,
+      "induced": 0,
+      "decidableSites": 3,
+      "undecidableSites": 5,
+      "reportedInjection": 1,
+      "resistant": 8,
+      "rate": 1,
+      "suppressionRate": 0
     },
     "severityAgreement": {
       "agreed": 35,
