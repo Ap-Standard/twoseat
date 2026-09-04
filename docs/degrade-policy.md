@@ -150,7 +150,7 @@ output in its own workflow and fails its own job:
 
 ```yaml
 - id: review
-  uses: Ap-Standard/twoseat@v0
+  uses: Ap-Standard/twoseat@v0.1.0
   with:
     api-key: ${{ secrets.ANTHROPIC_API_KEY }}
     primary-model: claude-sonnet-5
