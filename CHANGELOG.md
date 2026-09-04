@@ -85,7 +85,7 @@ pull requests, shipped with the benchmark that scored it.
   could not be read ([#19], tracked in [#15]), read from the latest twoseat
   comment on each on 2026-09-03. The corpus proves the seat finds seeded
   defects in small diffs, so the open question is diff size or defect absence
-  on live diffs above 100,000 characters.
+  on live diffs many times the size of any corpus case.
 - Two seeded P1 defects are unreachable by any confidence threshold ([#18]).
   The seat located a committed private key and a TOCTOU defect and graded both
   P2, so no threshold reaches them. This is severity calibration, not a
