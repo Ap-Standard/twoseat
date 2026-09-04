@@ -1,7 +1,7 @@
 # twoseat
 
-A measured AI code-review gate for GitHub pull requests. It publishes the
-benchmark that scored it, and it never blocks on its own malfunction.
+A measured AI code-review gate for GitHub pull requests that publishes the
+benchmark that scored it and never blocks on its own malfunction.
 
 > Claude writes the code in these repositories. I set direction, make every decision recorded in the ADRs, define what gets measured and how, review every pull request, and merge. The judgment is mine. The typing is not.
 
