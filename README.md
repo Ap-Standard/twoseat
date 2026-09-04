@@ -151,11 +151,13 @@ README block and the hero. Only `npm run bench` calls a model and spends money.
 
 ## Limitations
 
-- **[open]** Six merged pull requests reached a seat: five came back "No
-  findings" and one reply could not be read
-  ([#15](https://github.com/Ap-Standard/twoseat/issues/15)). The corpus
-  proves the seat finds seeded defects in small diffs; whether it does so in
-  a live diff many times the size of any corpus case is not measured.
+- **[open]** Zero findings on live pull requests so far
+  ([#12](https://github.com/Ap-Standard/twoseat/issues/12)). Six merged pull
+  requests reached a seat: five came back "No findings" and one reply could not
+  be read ([#15](https://github.com/Ap-Standard/twoseat/issues/15)),
+  read from the latest twoseat comment on each on 2026-09-03. The corpus
+  proves the seat finds seeded defects in small diffs; whether it does so in a
+  live diff many times the size of any corpus case is not measured.
 - **[open]** Two seeded P1 defects are unreachable by any confidence threshold
   ([#18](https://github.com/Ap-Standard/twoseat/issues/18)). The seat located a
   committed private key and graded it P2. Severity calibration is v0.2 work.
