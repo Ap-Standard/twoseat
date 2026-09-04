@@ -137,7 +137,7 @@ npm run bench:rescore -- --unverified
 npm run scorecard
 ```
 
-`npm test` runs VITEST_COUNT tests with no key: corpus self-validation,
+`npm test` runs 334 tests with no key: corpus self-validation,
 matching, scoring, the renderers, and every action module (count as printed by
 vitest on the day of the v0.1.0 freeze).
 
