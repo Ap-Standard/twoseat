@@ -26,7 +26,10 @@ One comment per pull request, updated in place, marked by a hidden
 
 Set the repository variable `TWOSEAT_BLOCKING_DISABLED` to `true`. The next
 run reports `blocking-disabled` and prints "the kill switch is set" in the
-Blocking row. No release and no code change.
+Blocking row. No release and no code change. Your workflow must forward the
+variable into the input, as the snippets in the README and
+[degrade-policy.md](degrade-policy.md) do:
+`blocking-disabled: ${{ vars.TWOSEAT_BLOCKING_DISABLED }}`.
 
 ```bash
 gh variable set TWOSEAT_BLOCKING_DISABLED --body true -R <owner>/<repo>
@@ -42,8 +45,8 @@ and the gate reports `not-reviewed` at no cost.
 ## Cost ceiling
 
 `cost-ceiling-usd` (default `0.50`) is checked before the seat is called,
-against the most the call could cost: every input character priced at two per
-token plus the whole output allowance. A run over the ceiling reports
+against the most the call could cost: the input converted at two characters per token
+plus the whole output allowance. A run over the ceiling reports
 `not-reviewed` with "Skipped to stay inside the cost ceiling" in the headline.
 The ceiling only works when both `input-price-per-mtok` and
 `output-price-per-mtok` are set; without them the run warns that it spends
@@ -96,6 +99,6 @@ that is the expected state, not a rotation failure.
    gh release edit vX.Y.Z --notes-file notes.md
    ```
 
-A release without that section is unverified and the portfolio dashboard lists
-it as such by name. Never pin consumers to a floating tag such as `@v0`; pin
-the exact release.
+A release without that section is unverified; the portfolio dashboard, once built,
+will list it as such by name. Never pin consumers to a floating tag
+such as `@v0`; pin the exact release.
