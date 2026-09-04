@@ -16,6 +16,7 @@ const config: Config = {
   tokenPrices: { inputPerMTok: 3, outputPerMTok: 15 },
   blockingDisabled: false,
   blockingDisabledReason: null,
+  blockingConfidence: 'medium',
 };
 
 const plan: BudgetPlan = {

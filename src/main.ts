@@ -3,8 +3,9 @@
  *
  * One rule governs this file: the step always succeeds. A crash, a bad input,
  * an API failure, or a real finding produces an annotation, never a failed
- * check. Blocking a merge is reserved for the policy engine, so a malfunction
- * of the gate can never stop a pull request.
+ * check. A blocking decision is published as an output for a workflow to act
+ * on, so no malfunction of the gate can stop a pull request. The policy behind
+ * that decision is in docs/degrade-policy.md.
  *
  * A run that could not review says so in its comment. Reporting a failed seat
  * as a clean review is the one outcome this file must never produce, because it
@@ -16,6 +17,8 @@ import * as github from '@actions/github';
 import { parseConfig } from './config.js';
 import { charBudgetForTokens, planDiffBudget } from './ingest/budget.js';
 import { toDiffFiles } from './ingest/files.js';
+import { syncUnreviewedLabel, type LabelClient } from './labels.js';
+import { decidePolicy, wantsUnreviewedLabel } from './policy.js';
 import { assembleReviewPrompt, createRunNonce } from './prompt/assemble.js';
 import { findReviewComment } from './render/comment.js';
 import { renderReviewBody, type ReviewOutcome } from './render/review.js';
@@ -63,6 +66,28 @@ async function upsertSummaryComment(
     comment_id: existing.id,
     body,
   });
+}
+
+/** Binds the label operations to one pull request. The rules are in labels.ts. */
+function labelClient(octokit: Octokit, pr: PullRequestRef): LabelClient {
+  return {
+    add: async (name) => {
+      await octokit.rest.issues.addLabels({
+        owner: pr.owner,
+        repo: pr.repo,
+        issue_number: pr.number,
+        labels: [name],
+      });
+    },
+    remove: async (name) => {
+      await octokit.rest.issues.removeLabel({
+        owner: pr.owner,
+        repo: pr.repo,
+        issue_number: pr.number,
+        name,
+      });
+    },
+  };
 }
 
 /**
@@ -146,11 +171,32 @@ async function run(): Promise<void> {
 
   annotate(outcome);
 
-  await upsertSummaryComment(
-    octokit,
-    { owner, repo, number },
-    renderReviewBody({ config, plan, promptVersion: prompt.promptVersion, outcome }),
+  // Decided once. The comment, the outputs, and the label all read this value,
+  // so they cannot report different verdicts on the same run.
+  const decision = decidePolicy(outcome, config);
+
+  // Isolated, because the three ways this run publishes its outcome must not
+  // depend on each other. A failed comment call would otherwise reach the
+  // top-level catch and skip both the label and the outputs, which would leave
+  // a reviewed pull request wearing a stale unreviewed label, or leave a run
+  // that never reviewed with nothing on the pull request saying so.
+  try {
+    await upsertSummaryComment(
+      octokit,
+      { owner, repo, number },
+      renderReviewBody({ config, plan, promptVersion: prompt.promptVersion, decision, outcome }),
+    );
+  } catch (error: unknown) {
+    core.warning(`Could not post the summary comment: ${describeError(error)}.`);
+  }
+
+  const labelWarning = await syncUnreviewedLabel(
+    labelClient(octokit, { owner, repo, number }),
+    wantsUnreviewedLabel(decision.decision),
   );
+  if (labelWarning !== null) {
+    core.warning(labelWarning);
+  }
 
   const findings = outcome.kind === 'reviewed' ? outcome.findings : [];
 
@@ -160,6 +206,8 @@ async function run(): Promise<void> {
   core.setOutput('reviewed', outcome.kind === 'reviewed');
   core.setOutput('findings', findings.length);
   core.setOutput('findings-p1', findings.filter((finding) => finding.severity === 'P1').length);
+  core.setOutput('decision', decision.decision);
+  core.setOutput('blocking-findings', decision.blockingFindings);
   core.setOutput(
     'estimated-cost-usd',
     outcome.kind === 'reviewed' && outcome.cost !== null ? outcome.cost.usd.toFixed(4) : '',

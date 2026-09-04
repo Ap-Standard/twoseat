@@ -8,6 +8,7 @@ const baseInputs = {
   'token-ceiling': '120000',
   'cost-ceiling-usd': '0.50',
   'blocking-disabled': '',
+  'blocking-confidence': '',
   'api-key': '',
   'input-price-per-mtok': '',
   'output-price-per-mtok': '',
@@ -49,6 +50,45 @@ test('recognizes the documented kill-switch spellings regardless of case', () =>
   for (const value of ['false', 'FALSE', '0', 'no', 'off']) {
     expect(parseConfig(reader({ 'blocking-disabled': value })).blockingDisabled).toBe(false);
   }
+});
+
+test('an unset blocking confidence uses the calibrated default', () => {
+  const config = parseConfig(reader({ 'blocking-confidence': '' }));
+
+  expect(config.blockingConfidence).toBe('medium');
+  expect(config.blockingDisabled).toBe(false);
+});
+
+test('reads the documented confidence thresholds regardless of case or padding', () => {
+  for (const value of ['high', 'HIGH', ' medium ', 'low']) {
+    const config = parseConfig(reader({ 'blocking-confidence': value }));
+
+    expect(config.blockingConfidence).toBe(value.trim().toLowerCase());
+    expect(config.blockingDisabled).toBe(false);
+  }
+});
+
+test('an unrecognized blocking confidence disables blocking rather than guessing', () => {
+  const config = parseConfig(reader({ 'blocking-confidence': 'very-sure' }));
+
+  expect(config.blockingDisabled).toBe(true);
+  expect(config.blockingDisabledReason).toMatch(/unrecognized/i);
+  expect(config.blockingDisabledReason).toContain('very-sure');
+});
+
+test('an unrecognized blocking confidence still counts findings at the default', () => {
+  const config = parseConfig(reader({ 'blocking-confidence': 'very-sure' }));
+
+  expect(config.blockingConfidence).toBe('medium');
+});
+
+test('the kill switch reason survives an unrecognized confidence beside it', () => {
+  const config = parseConfig(
+    reader({ 'blocking-disabled': 'true', 'blocking-confidence': 'very-sure' }),
+  );
+
+  expect(config.blockingDisabled).toBe(true);
+  expect(config.blockingDisabledReason).toMatch(/kill switch/i);
 });
 
 test('unset token prices mean no cost estimate rather than a guessed one', () => {
