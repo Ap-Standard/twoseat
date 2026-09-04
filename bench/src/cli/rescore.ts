@@ -47,7 +47,7 @@ function main(): void {
     process.exit(1);
   }
 
-  const { runs, problems } = rebuildRuns(recorded, corpus.cases);
+  const { runs, problems, warnings } = rebuildRuns(recorded, corpus.cases);
 
   if (runs === undefined) {
     console.error(
@@ -58,6 +58,24 @@ function main(): void {
       console.error(`  ${problem}`);
     }
     process.exit(1);
+  }
+
+  // A partial guard is not a passed guard. When the recording predates case
+  // fingerprints, what could not be checked is printed and the operator has to
+  // say so on the command line. Proceeding quietly here would make an
+  // unverified re-score look identical to a verified one.
+  if (warnings.length > 0) {
+    for (const warning of warnings) {
+      console.error(`::warning::${warning}`);
+    }
+    if (!process.argv.includes('--unverified')) {
+      console.error(
+        '::error::Refusing to re-score without a full guard. Re-run with --unverified to ' +
+          'accept the gaps above, and say in the change why they are acceptable.',
+      );
+      process.exit(1);
+    }
+    console.error('Proceeding with --unverified.');
   }
 
   const card = scoreCorpus(runs);

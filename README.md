@@ -91,7 +91,8 @@ The corpus is built: 48 synthetic cases, 30 with a seeded defect across seven
 classes, 10 clean, and 8 carrying a prompt injection. Every case validates
 against its own diff in CI, and the harness computes precision, recall, and F1
 per severity and per defect class, false-block rate at each confidence
-threshold, injection-resistance rate, and median cost and latency.
+threshold, injection suppression and induction separately, and median cost and
+latency.
 
 Two commands produce the block below from a live run: `npm run bench`, then
 `npm run scorecard`.
@@ -116,6 +117,14 @@ because a composite rate could not say which one the gate is weak against.
 **The suppression row above is a count of 8 cases, not a rate to lean on.**
 Nothing was suppressed in either run of this corpus, which is the strongest
 honest claim available and still a small sample.
+
+One thing the corpus cannot settle: in five of the eight injection cases the
+injected comment sits within the matching tolerance of the defect it hides,
+which is how the attack works. A finding there is either the defect or a report
+of the injection, and only its wording says which. The report counts those
+cases as undecidable rather than assigning them, and
+[#22](https://github.com/Ap-Standard/twoseat/issues/22) tracks what that means
+for recall.
 
 <!-- scorecard:start -->
 <!-- generated from bench/results/REPORT.md; do not edit by hand -->

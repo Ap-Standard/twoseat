@@ -14,6 +14,8 @@
  * measured, dressed up as a free correction. So the labels must be unchanged,
  * and this refuses to rebuild anything when they are not.
  */
+import { createHash } from 'node:crypto';
+
 import type { AuditLog } from './audit.js';
 import type { BenchCase } from './case.js';
 import type { CaseRun } from './score.js';
@@ -22,9 +24,36 @@ export interface RescoreResult {
   /** Absent when the corpus drifted. There is no partial answer worth having. */
   runs?: CaseRun[];
   problems: string[];
+  /** What the guard could not verify. Never empty for a pre-fingerprint run. */
+  warnings: string[];
 }
 
-/** The answer key a seat was scored against, as a comparable string. */
+/**
+ * Everything about a case that can change a score, as one hash.
+ *
+ * Not just the labels. `induces` decides whether an old finding counts as
+ * induction and therefore whether the case resisted; `injection` and the
+ * patches decide where the injection sits, which decides what counts as a
+ * report about it. Comparing only kind and labels let all of that drift, which
+ * is the hole a second review seat found in the first version of this file.
+ *
+ * `description` is excluded because nothing scores against it, so fixing a
+ * typo in one does not invalidate a run.
+ */
+export function caseFingerprint(benchCase: BenchCase): string {
+  const scoreAffecting = {
+    kind: benchCase.kind,
+    category: benchCase.category,
+    files: benchCase.files.map((file) => ({ path: file.path, patch: file.patch })),
+    expected: benchCase.expected.map((label) => JSON.stringify(label)).sort(),
+    injection: benchCase.injection ?? null,
+    induces: benchCase.induces ?? null,
+  };
+
+  return createHash('sha256').update(JSON.stringify(scoreAffecting)).digest('hex').slice(0, 16);
+}
+
+/** The partial key, for runs recorded before fingerprints existed. */
 function answerKey(kind: string, expected: readonly unknown[]): string {
   const labels = expected
     .map((label) => JSON.stringify(label))
@@ -46,7 +75,9 @@ function answerKey(kind: string, expected: readonly unknown[]): string {
 export function rebuildRuns(log: AuditLog, corpus: readonly BenchCase[]): RescoreResult {
   const byId = new Map(corpus.map((benchCase) => [benchCase.id, benchCase]));
   const problems: string[] = [];
+  const warnings: string[] = [];
   const runs: CaseRun[] = [];
+  let unfingerprinted = 0;
 
   for (const recorded of log.cases) {
     const benchCase = byId.get(recorded.id);
@@ -59,15 +90,29 @@ export function rebuildRuns(log: AuditLog, corpus: readonly BenchCase[]): Rescor
     }
     byId.delete(recorded.id);
 
-    const before = answerKey(recorded.kind, recorded.expected);
-    const after = answerKey(benchCase.kind, benchCase.expected);
-    if (before !== after) {
-      problems.push(
-        `${recorded.id}: its kind or expected labels changed since the run. Re-scoring old ` +
-          'seat output against edited labels would fit the corpus to the answers it received. ' +
-          'Run the benchmark again instead.',
-      );
-      continue;
+    if (recorded.fingerprint !== undefined) {
+      if (recorded.fingerprint !== caseFingerprint(benchCase)) {
+        problems.push(
+          `${recorded.id}: something the score depends on changed since the run, one of its ` +
+            'kind, category, patches, labels, declared injection, or declared induces. ' +
+            'Re-scoring old seat output against an edited case would fit the corpus to the ' +
+            'answers it received. Run the benchmark again instead.',
+        );
+        continue;
+      }
+    } else {
+      unfingerprinted += 1;
+
+      const before = answerKey(recorded.kind, recorded.expected);
+      const after = answerKey(benchCase.kind, benchCase.expected);
+      if (before !== after) {
+        problems.push(
+          `${recorded.id}: its kind or expected labels changed since the run. Re-scoring old ` +
+            'seat output against edited labels would fit the corpus to the answers it ' +
+            'received. Run the benchmark again instead.',
+        );
+        continue;
+      }
     }
 
     runs.push({
@@ -92,9 +137,18 @@ export function rebuildRuns(log: AuditLog, corpus: readonly BenchCase[]): Rescor
     );
   }
 
-  if (problems.length > 0) {
-    return { problems };
+  if (unfingerprinted > 0) {
+    warnings.push(
+      `${String(unfingerprinted)} case(s) were recorded before this run carried a case ` +
+        'fingerprint, so only their kind and expected labels could be checked. Their patches, ' +
+        'declared injection, and declared induces are taken from the corpus as it stands now ' +
+        'and cannot be verified against what was actually scored.',
+    );
   }
 
-  return { runs, problems: [] };
+  if (problems.length > 0) {
+    return { problems, warnings };
+  }
+
+  return { runs, problems: [], warnings };
 }

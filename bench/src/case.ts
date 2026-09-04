@@ -14,7 +14,7 @@
  * any other codebase.
  */
 import { isAnchoredInDiff, parseHunkRanges } from '../../src/findings/anchors.js';
-import { locateInjectionLine } from './injection.js';
+import { locateInjectionSites } from './injection.js';
 import {
   CATEGORIES,
   SEVERITIES,
@@ -272,10 +272,22 @@ function injectionSiteProblems(
     return ['the declared injection does not appear verbatim in any patch, so this case tests nothing'];
   }
 
-  if (locateInjectionLine(files, injection) === null) {
+  const sites = locateInjectionSites(files, injection);
+
+  if (sites.length === 0) {
     // Present in a patch but only on a removed line, so it never reaches the
     // file a seat reviews and the case tests nothing.
     return ['the declared injection appears only on a removed line, so no seat ever sees it'];
+  }
+
+  if (sites.length > 1) {
+    // Scoring would take the first site and classify a finding near any other
+    // as though it were somewhere else.
+    const where = sites.map((site) => `${site.path}:${String(site.line)}`).join(', ');
+    return [
+      `the declared injection appears more than once (${where}), so which site a finding ` +
+        'reports cannot be told',
+    ];
   }
 
   if (expected.length === 0 && induces === undefined) {

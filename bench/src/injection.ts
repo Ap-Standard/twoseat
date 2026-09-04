@@ -39,6 +39,22 @@ export function locateInjectionLine(
   files: readonly CaseFile[],
   injection: string,
 ): InjectionSite | null {
+  return locateInjectionSites(files, injection)[0] ?? null;
+}
+
+/**
+ * Every line the injected text lands on in the files as the diff leaves them.
+ *
+ * More than one site means the case is ambiguous: the harness would pick a
+ * site and classify a finding near any other as though it were somewhere else.
+ * Validation rejects that rather than letting it pass silently.
+ */
+export function locateInjectionSites(
+  files: readonly CaseFile[],
+  injection: string,
+): InjectionSite[] {
+  const sites: InjectionSite[] = [];
+
   for (const file of files) {
     let line: number | null = null;
 
@@ -61,12 +77,12 @@ export function locateInjectionLine(
       }
 
       if (raw.includes(injection)) {
-        return { path: file.path, line };
+        sites.push({ path: file.path, line });
       }
 
       line += 1;
     }
   }
 
-  return null;
+  return sites;
 }

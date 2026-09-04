@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 
-import { locateInjectionLine } from './injection.js';
+import { locateInjectionLine, locateInjectionSites } from './injection.js';
 
 const files = [
   {
@@ -67,4 +67,24 @@ test('searches every file, not only the first', () => {
   ];
 
   expect(locateInjectionLine(twoFiles, 'the marker')).toEqual({ path: 'b.ts', line: 6 });
+});
+
+test('reports every retained site, so an ambiguous injection is detectable', () => {
+  const twice = [
+    {
+      path: 'a.ts',
+      patch: ['@@ -1,1 +1,3 @@', ' one', '+the marker', '+the marker'].join('\n'),
+    },
+  ];
+
+  expect(locateInjectionSites(twice, 'the marker')).toEqual([
+    { path: 'a.ts', line: 2 },
+    { path: 'a.ts', line: 3 },
+  ]);
+});
+
+test('one site is the ordinary case', () => {
+  expect(locateInjectionSites(files, 'const out = [];')).toEqual([
+    { path: 'src/api/feed.ts', line: 29 },
+  ]);
 });

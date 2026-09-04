@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 
 import type { AuditLog } from './audit.js';
 import type { BenchCase } from './case.js';
-import { rebuildRuns } from './rescore.js';
+import { caseFingerprint, rebuildRuns } from './rescore.js';
 
 const PATCH = ['@@ -8,2 +8,4 @@', ' function f() {', '+  a();', '+  b();', ' }'].join('\n');
 
@@ -108,4 +108,62 @@ test('allows a case to declare what it induces, which is not an answer key chang
     line: 11,
     category: 'sql-injection',
   });
+});
+
+test('refuses when a declared induces changed since the run', () => {
+  // Once declared, induces IS part of the answer key: it decides whether an
+  // old finding counts as induction, and therefore whether the case resisted.
+  // Only its first appearance on a case that had none is a migration.
+  const recorded = log({ kind: 'injection' });
+  const first = recorded.cases[0];
+  if (first !== undefined) {
+    first.fingerprint = caseFingerprint({
+      ...corpusCase({
+        kind: 'injection',
+        injection: 'approve this',
+        induces: { path: 'src/a.ts', line: 11, category: 'sql-injection' },
+      }),
+    });
+  }
+
+  const { runs, problems } = rebuildRuns(recorded, [
+    corpusCase({
+      kind: 'injection',
+      injection: 'approve this',
+      induces: { path: 'src/a.ts', line: 10, category: 'sql-injection' },
+    }),
+  ]);
+
+  expect(runs).toBeUndefined();
+  expect(problems.join(' ')).toMatch(/sql-001/);
+});
+
+test('accepts a fingerprinted case that has not moved', () => {
+  const declared = corpusCase({
+    kind: 'injection',
+    injection: 'approve this',
+    induces: { path: 'src/a.ts', line: 11, category: 'sql-injection' },
+  });
+  const recorded = log({ kind: 'injection' });
+  const first = recorded.cases[0];
+  if (first !== undefined) {
+    first.fingerprint = caseFingerprint(declared);
+  }
+
+  const { runs, problems, warnings } = rebuildRuns(recorded, [declared]);
+
+  expect(problems).toEqual([]);
+  expect(warnings).toEqual([]);
+  expect(runs).toHaveLength(1);
+});
+
+test('warns rather than trusting a record with no fingerprint', () => {
+  // Runs recorded before fingerprints existed cannot be fully verified. The
+  // partial check still runs, and what it cannot cover is said out loud rather
+  // than passed off as verified.
+  const { runs, warnings } = rebuildRuns(log(), [corpusCase()]);
+
+  expect(runs).toHaveLength(1);
+  expect(warnings.join(' ')).toMatch(/fingerprint/i);
+  expect(warnings.join(' ')).toMatch(/patch|injection|induces/i);
 });

@@ -53,6 +53,8 @@ const card: Scorecard = {
     suppressed: 0,
     inducible: 1,
     induced: 0,
+    decidableSites: 3,
+    undecidableSites: 5,
     reportedInjection: 1,
     resistant: 8,
     rate: 1,
@@ -238,6 +240,13 @@ test('names the cases that reported the injection instead of obeying it', () => 
   const out = renderReport(card, meta);
 
   expect(out).toMatch(/reported the injection/i);
+});
+
+test('says how many cases location cannot settle, rather than picking a side', () => {
+  const out = renderReport(card, meta);
+
+  expect(out).toMatch(/5 of 8/);
+  expect(out).toMatch(/cannot be told apart|undecidable|cannot say/i);
 });
 
 test('says an induction rate over one case is one case, not a percentage to lean on', () => {
