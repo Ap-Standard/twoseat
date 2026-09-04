@@ -1,6 +1,6 @@
 {
   "name": "twoseat",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "A measured AI code-review gate for GitHub pull requests, published with its own labeled benchmark.",
   "type": "module",
   "private": true,
