@@ -99,6 +99,6 @@ that is the expected state, not a rotation failure.
    gh release edit vX.Y.Z --notes-file notes.md
    ```
 
-A release without that section is unverified; the portfolio dashboard, once built,
-will list it as such by name. Never pin consumers to a floating tag
-such as `@v0`; pin the exact release.
+A release without that section is unverified; the portfolio dashboard lists it
+as such by name at <https://ap-standard.github.io/flightdeck/>. Never pin
+consumers to a floating tag such as `@v0`; pin the exact release.
