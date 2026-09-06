@@ -5,9 +5,9 @@ benchmark that scored it and never blocks on its own malfunction.
 
 > Claude writes the code in these repositories. I set direction, make every decision recorded in the ADRs, define what gets measured and how, review every pull request, and merge. The judgment is mine. The typing is not.
 
-[![checks](https://github.com/Ap-Standard/twoseat/actions/workflows/checks.yml/badge.svg?branch=main)](https://github.com/Ap-Standard/twoseat/actions/workflows/checks.yml)
-[![release](https://img.shields.io/github/v/release/Ap-Standard/twoseat)](https://github.com/Ap-Standard/twoseat/releases/latest)
-[![license](https://img.shields.io/github/license/Ap-Standard/twoseat)](LICENSE)
+[![checks workflow status on main](https://github.com/Ap-Standard/twoseat/actions/workflows/checks.yml/badge.svg?branch=main)](https://github.com/Ap-Standard/twoseat/actions/workflows/checks.yml)
+[![latest release](https://img.shields.io/github/v/release/Ap-Standard/twoseat)](https://github.com/Ap-Standard/twoseat/releases/latest)
+[![Apache-2.0 license](https://img.shields.io/github/license/Ap-Standard/twoseat)](LICENSE)
 
 [![twoseat scorecard: precision, recall, F1, and median cost per review, rendered from the recorded benchmark run](docs/assets/scorecard.svg)](bench/results/REPORT.md)
 
