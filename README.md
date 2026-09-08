@@ -21,7 +21,7 @@ Second seat: not built, [v0.2 milestone](https://github.com/Ap-Standard/twoseat/
 | --- | --- |
 | **Decided** | Benchmark before trust ([#6](https://github.com/Ap-Standard/twoseat/issues/6), [#14](https://github.com/Ap-Standard/twoseat/pull/14)). Never block on a load failure, and decide without enforcing ([#4](https://github.com/Ap-Standard/twoseat/issues/4), [docs/degrade-policy.md](docs/degrade-policy.md)). Publish the ambiguous figure with the ambiguity attached ([#16](https://github.com/Ap-Standard/twoseat/issues/16), [#22](https://github.com/Ap-Standard/twoseat/issues/22)). |
 | **Specified** | A gate whose step exits 0 on every path, and whose scorecard regenerates from a committed run with no key and no spend. |
-| **Measured** | Precision 97.4%, recall 100.0%, F1 98.7%, median $0.0092 per review, on 47 of 48 synthetic cases scored in a single run recorded 2026-09-03 ([scorecard.json](bench/results/scorecard.json), method in [bench/README.md](bench/README.md)). |
+| **Measured** | Recall 97.4%, precision 100.0%, F1 98.7%, median $0.0092 per review, on 47 of 48 synthetic cases scored in a single run recorded 2026-09-03 and re-scored 2026-09-08 under the v0.1.1 rule ([scorecard.json](bench/results/scorecard.json), method in [bench/README.md](bench/README.md)). |
 | **Reviewed** | 8 merged pull requests, each reviewed by this action running from its own checkout: 18 `ai-review` runs, all completed, counted from the workflow run list on 2026-09-03. Six reached a seat: five reported no findings ([#12](https://github.com/Ap-Standard/twoseat/issues/12)) and one ended `not-reviewed` on an unreadable reply ([#15](https://github.com/Ap-Standard/twoseat/issues/15)); two predate the seat. The record proves the gate ran on real diffs, not that it would find a defect in one. |
 
 ## Quickstart
@@ -42,7 +42,7 @@ jobs:
   review:
     runs-on: ubuntu-latest
     steps:
-      - uses: Ap-Standard/twoseat@v0.1.0
+      - uses: Ap-Standard/twoseat@v0.1.1
         with:
           api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           primary-model: claude-sonnet-5
@@ -121,9 +121,13 @@ argument that the code contradicted its own documented definition, not on the
 number moving. The two directions of the attack are now reported apart, and the
 suppression row above is a count of 8 cases, not a rate to lean on.
 
-Recall counts inj-006 as a hit. Issue
-[#22](https://github.com/Ap-Standard/twoseat/issues/22) records why that credit
-is ambiguous.
+Recall counted inj-006 as a hit until v0.1.1. A finding anchored exactly on an
+injection's line is now a report about the injection, so it cannot be credited
+with the defect beside it: on the same recorded run, recall fell to 97.4%,
+precision rose to 100.0%, and the suppression row above moved from 0 of 8 to
+1 of 8 ([#22](https://github.com/Ap-Standard/twoseat/issues/22), method in
+[bench/README.md](bench/README.md), decision
+[0008](https://github.com/Ap-Standard/Ap-Standard/blob/main/docs/decisions/0008-injection-line-scoring-rule.md)).
 
 Every figure names the model, the prompt version, and the matching rule that
 produced it. Scores compare only within one prompt version, which is why the
@@ -158,13 +162,13 @@ README block and the hero. Only `npm run bench` calls a model and spends money.
   read from the latest twoseat comment on each on 2026-09-03. The corpus
   proves the seat finds seeded defects in small diffs; whether it does so in a
   live diff many times the size of any corpus case is not measured.
-- **[open]** Two seeded P1 defects are unreachable by any confidence threshold
+- **[open]** One seeded P1 defect is unreachable by any confidence threshold
   ([#18](https://github.com/Ap-Standard/twoseat/issues/18)). The seat located a
   committed private key and graded it P2. Severity calibration is v0.2 work.
-- **[open]** Proximity ambiguity
-  ([#22](https://github.com/Ap-Standard/twoseat/issues/22)). In five of eight
-  injection cases the injected comment sits within the 2-line matching
-  tolerance of the defect it hides.
+- **[fixed in v0.1.1]** Proximity ambiguity
+  ([#22](https://github.com/Ap-Standard/twoseat/issues/22)). A finding on the
+  injection's own line is scored as a report about the injection, never as the
+  defect beside it. The recall it moved is disclosed above.
 - **[not built]** Retry on an unreadable reply
   ([#15](https://github.com/Ap-Standard/twoseat/issues/15)). 3 of 96 calls
   across the two full runs of this corpus came back unreadable and all 3
@@ -213,7 +217,7 @@ README block and the hero. Only `npm run bench` calls a model and spends money.
   ([#14](https://github.com/Ap-Standard/twoseat/pull/14)), the injection metric
   ([#16](https://github.com/Ap-Standard/twoseat/issues/16)), and the recall
   ambiguity ([#22](https://github.com/Ap-Standard/twoseat/issues/22)) each got
-  or will get a change reviewable on its own argument, never a quiet edit.
+  a change reviewable on its own argument, never a quiet edit.
 
 ## Runbook
 

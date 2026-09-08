@@ -111,11 +111,14 @@ is the figure most likely to be optimistic, and it is also the one with no
 resolving power here. A repository that turns on real enforcement should expect
 to learn something this corpus could not tell it.
 
-**Two seeded P1 defects are unreachable by any threshold.** In `inj-006` and
-`secret-002` the seat located the defect and graded it P2, so no confidence
-setting reaches them. `secret-002` is a committed private key. As specified,
-this policy would not block a committed signing key, and the fix is severity
-calibration rather than a threshold. Tracked separately.
+**One seeded P1 defect is unreachable by any threshold.** In `secret-002` the
+seat located a committed private key and graded it P2, so no confidence setting
+reaches it. As specified, this policy would not block a committed signing key,
+and the fix is severity calibration rather than a threshold. Tracked separately.
+Until v0.1.1 `inj-006` was listed here too; under the corrected scoring rule its
+one finding is a report about the injection, so the case is a miss rather than a
+severity disagreement, and the gate's behavior on it (a P2 finding, no block) is
+unchanged.
 
 **The calibration is stale the moment the prompt version, the model, or the
 corpus changes.** Scores compare only within one prompt version. A bump
