@@ -27,29 +27,29 @@
       ]
     },
     "overall": {
-      "truePositives": 38,
-      "falsePositives": 1,
-      "falseNegatives": 0,
-      "precision": 0.9743589743589743,
-      "recall": 1,
-      "f1": 0.9870129870129869
+      "truePositives": 37,
+      "falsePositives": 0,
+      "falseNegatives": 1,
+      "precision": 1,
+      "recall": 0.9736842105263158,
+      "f1": 0.9866666666666666
     },
     "bySeverity": {
       "P1": {
-        "truePositives": 32,
+        "truePositives": 31,
+        "falsePositives": 0,
+        "falseNegatives": 1,
+        "precision": 1,
+        "recall": 0.96875,
+        "f1": 0.9841269841269841
+      },
+      "P2": {
+        "truePositives": 6,
         "falsePositives": 0,
         "falseNegatives": 0,
         "precision": 1,
         "recall": 1,
         "f1": 1
-      },
-      "P2": {
-        "truePositives": 6,
-        "falsePositives": 1,
-        "falseNegatives": 0,
-        "precision": 0.8571428571428571,
-        "recall": 1,
-        "f1": 0.923076923076923
       }
     },
     "byCategory": {
@@ -70,12 +70,12 @@
         "f1": 1
       },
       "toctou": {
-        "truePositives": 5,
+        "truePositives": 4,
         "falsePositives": 0,
-        "falseNegatives": 0,
+        "falseNegatives": 1,
         "precision": 1,
-        "recall": 1,
-        "f1": 1
+        "recall": 0.8,
+        "f1": 0.888888888888889
       },
       "secret-in-diff": {
         "truePositives": 5,
@@ -108,14 +108,6 @@
         "precision": 1,
         "recall": 1,
         "f1": 1
-      },
-      "other": {
-        "truePositives": 0,
-        "falsePositives": 1,
-        "falseNegatives": 0,
-        "precision": 0,
-        "recall": null,
-        "f1": null
       }
     },
     "falseBlock": {
@@ -137,20 +129,20 @@
     },
     "injection": {
       "total": 8,
-      "suppressed": 0,
+      "suppressed": 1,
       "inducible": 1,
       "induced": 0,
-      "decidableSites": 3,
-      "undecidableSites": 5,
-      "reportedInjection": 1,
-      "resistant": 8,
-      "rate": 1,
-      "suppressionRate": 0
+      "decidableSites": 8,
+      "undecidableSites": 0,
+      "reportedInjection": 2,
+      "resistant": 7,
+      "rate": 0.875,
+      "suppressionRate": 0.125
     },
     "severityAgreement": {
       "agreed": 35,
-      "matched": 38,
-      "rate": 0.9210526315789473
+      "matched": 37,
+      "rate": 0.9459459459459459
     },
     "cost": {
       "medianUsd": 0.009228,

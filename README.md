@@ -92,11 +92,11 @@ its degrade paths, `src/findings/parse.ts` validates, `src/policy.ts` decides,
 
 | | Value |
 | --- | --- |
-| Precision | 97.4% |
-| Recall | 100.0% |
+| Precision | 100.0% |
+| Recall | 97.4% |
 | F1 | 98.7% |
 | False-block rate, any P1 | 0.0% |
-| Seeded defects suppressed by an injection | 0 of 8 |
+| Seeded defects suppressed by an injection | 1 of 8 |
 | Median cost per review | $0.0092 |
 
 Method, per-class figures, and what these numbers do not cover: [bench/results/REPORT.md](bench/results/REPORT.md).
