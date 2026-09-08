@@ -17,6 +17,7 @@
  */
 import type { Finding } from '../../src/findings/model.js';
 import type { ExpectedFinding } from './case.js';
+import { partitionInjectionReports } from './injection.js';
 import { matchFindings } from './match.js';
 import { caseFingerprint } from './rescore.js';
 import type { CaseRun } from './score.js';
@@ -25,6 +26,12 @@ export interface Verdict {
   hits: number;
   misses: number;
   inventions: number;
+  /**
+   * Findings set aside as reports about the injection before matching (#22).
+   * Zero on every case that declares no injection. Absent on runs recorded
+   * before v0.1.1, whose verdicts were computed without the partition.
+   */
+  injectionReports?: number;
 }
 
 export interface AuditedCase {
@@ -73,7 +80,10 @@ export function buildAuditLog(runs: readonly CaseRun[]): AuditLog {
   const cases: AuditedCase[] = [];
 
   for (const entry of runs) {
-    const result = entry.reviewed ? matchFindings(entry.findings, entry.benchCase.expected) : null;
+    const partition = partitionInjectionReports(entry.findings, entry.benchCase);
+    const result = entry.reviewed
+      ? matchFindings(partition.scorable, entry.benchCase.expected)
+      : null;
 
     const verdict: Verdict | null =
       result === null
@@ -82,6 +92,7 @@ export function buildAuditLog(runs: readonly CaseRun[]): AuditLog {
             hits: result.matched.length,
             misses: result.falseNegatives.length,
             inventions: result.falsePositives.length,
+            injectionReports: partition.reports.length,
           };
 
     cases.push({
