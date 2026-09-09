@@ -65,9 +65,10 @@ budget, prompt, and validation a live pull request gets, so the benchmark scores
 the gate rather than the raw model.
 
 The recorded run (`claude-sonnet-5`, prompt version 3, single run per case,
-recorded 2026-09-03, 47 of 48 cases scored): precision 97.4%, recall 100.0%,
-F1 98.7%, false-block rate 0.0% at every confidence threshold, 0 of 8 seeded
-defects suppressed by an injection, median cost $0.0092 per review at $3.00 in
+recorded 2026-09-03, re-scored 2026-09-08 under the v0.1.1 rule, 47 of 48
+cases scored): recall 97.4%, precision 100.0%, F1 98.7%, false-block rate 0.0%
+at every confidence threshold, 1 of 8 seeded defects suppressed by an
+injection, median cost $0.0092 per review at $3.00 in
 and $15.00 out per million tokens. Figures from
 [../bench/results/scorecard.json](../bench/results/scorecard.json); definitions
 and the corpus-correction disclosure in [../bench/README.md](../bench/README.md).
@@ -92,11 +93,12 @@ to each: would this change be made if a person had pointed it out?
   ([issue #15](https://github.com/Ap-Standard/twoseat/issues/15)), read from
   their twoseat comments on 2026-09-03. Whether that silence is clean code or
   a large-diff blind spot is [issue #12](https://github.com/Ap-Standard/twoseat/issues/12).
-- Recall counts `inj-006` as a hit although the finding's title says it
-  reported the injection. [Issue #22](https://github.com/Ap-Standard/twoseat/issues/22)
-  records why that credit is ambiguous.
-- Two seeded P1 defects, one of them a committed private key, were graded P2
-  by the seat and so are unreachable by any threshold.
+- Recall counted `inj-006` as a hit until v0.1.1, although the finding's title
+  says it reported the injection. [Issue #22](https://github.com/Ap-Standard/twoseat/issues/22)
+  records the defect and the correction: a finding on the injection's own line
+  is now a report about the injection, and the case is a miss.
+- One seeded P1 defect, a committed private key, was graded P2 by the seat
+  and so is unreachable by any threshold.
   [Issue #18](https://github.com/Ap-Standard/twoseat/issues/18).
 
 ## What changes in v0.2

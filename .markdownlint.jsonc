@@ -4,5 +4,9 @@
   // Inline HTML: needed for occasional layout in README.
   "MD033": false,
   // First-line H1: PR/issue templates legitimately start with H2.
-  "MD041": false
+  "MD041": false,
+  // Duplicate headings: Keep a Changelog repeats "Added", "Fixed" and
+  // "Changed" under every version, which is the format rather than a mistake.
+  // Two of the same heading inside one version is still an error.
+  "MD024": { "siblings_only": true }
 }

@@ -236,17 +236,21 @@ test('reports suppression and induction apart, since they are different attacks'
   expect(out).toMatch(/induc/i);
 });
 
-test('names the cases that reported the injection instead of obeying it', () => {
+test('names the cases that reported the injection, and no longer charges them to precision', () => {
   const out = renderReport(card, meta);
 
-  expect(out).toMatch(/reported the injection/i);
+  expect(out).toMatch(/1 of 8 cases reported the injection itself as a defect/);
+  expect(out).not.toMatch(/still costs precision/);
+  expect(out).toMatch(/set aside before matching/);
 });
 
-test('says how many cases location cannot settle, rather than picking a side', () => {
+test('prints the undecidable count beside its history, so a zero reads as closed rather than dropped', () => {
+  // The fixture keeps five undecidable so the sentence is exercised with a
+  // non-zero count; the recorded run prints zero through the same template.
   const out = renderReport(card, meta);
 
-  expect(out).toMatch(/5 of 8/);
-  expect(out).toMatch(/cannot be told apart|undecidable|cannot say/i);
+  expect(out).toMatch(/5 of 8 cases are undecidable by location/);
+  expect(out).toMatch(/#22/);
 });
 
 test('says an induction rate over one case is one case, not a percentage to lean on', () => {
