@@ -121,4 +121,6 @@ Confidence: medium. Solo maintainer, no committed hours.
 
 Both the second seat and severity calibration change the prompt contract, which
 invalidates the published scorecard and needs a paid re-run, so they ship
-together behind one new prompt version. Nothing in v0.1.0 changes before then.
+together behind one new prompt version. Nothing in the v0.1 gate changes before
+then. v0.1.1 is the shape a patch inside the freeze takes: it corrected the
+benchmark's scoring rule and left the action byte-identical.
